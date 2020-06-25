@@ -1,0 +1,1 @@
+../../../ergodox_infinity/keymaps/firetech/config_keymap.h

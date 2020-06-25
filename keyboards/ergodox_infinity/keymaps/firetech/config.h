@@ -1,12 +1,6 @@
-#undef TAPPING_TOGGLE
-#define TAPPING_TOGGLE  2
-
-#undef TAPPING_TERM
-#define TAPPING_TERM 150
+#include "config_keymap.h"
 
 #undef BACKLIGHT_LEVELS
-#define BACKLIGHT_LEVELS 10
-
-#define PERMISSIVE_HOLD
+#define BACKLIGHT_LEVELS  10
 
 #define EE_HANDS
