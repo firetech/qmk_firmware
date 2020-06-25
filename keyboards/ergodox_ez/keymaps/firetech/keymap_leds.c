@@ -16,12 +16,28 @@
 
 #include "ergodox_ez.h"
 
-layer_state_t layer_state_set_user(layer_state_t state) {
-    uint8_t layer = get_highest_layer(state);
+uint16_t blink_timer = 0;
+bool blink_led_3 = false;
 
-    if (layer == 0) {
+void matrix_scan_user(void){
+    if (blink_led_3){
         ergodox_right_led_3_off();
-    } else {
+        uint16_t blink_elapsed = timer_elapsed(blink_timer);
+        if (blink_elapsed > 1000) { blink_timer = timer_read(); }
+        if (blink_elapsed < 500) { ergodox_right_led_3_on(); }
+    }
+};
+
+layer_state_t layer_state_set_user(layer_state_t state) {
+    ergodox_right_led_3_off();
+    blink_led_3 = false;
+
+    if (state & (1 << 2)) {
+        // Fn layer
+        blink_led_3 = true;
+    }
+    if (state & (1 << 1)) {
+        // Swap hands with Space enabled
         ergodox_right_led_3_on();
     }
     return state;

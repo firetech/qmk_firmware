@@ -146,11 +146,10 @@ void update_user_visualizer_state(visualizer_state_t* state, visualizer_keyboard
         lcd_backlight_brightness(brightness);
     }
 
-    if (state->status.layer & 0x2) {
+    if (state->status.layer & (1 << 2)) {
         state->target_lcd_color = fn_color;
         state->layer_text = "Fn";
-    }
-    else {
+    } else {
         state->target_lcd_color = default_color;
         state->layer_text = "Default";
     }
