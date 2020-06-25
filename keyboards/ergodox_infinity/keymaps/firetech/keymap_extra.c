@@ -15,7 +15,7 @@
  */
 
 #include "wpm.h"
-#include "keymap_wpm.h"
+#include "keymap_extra.h"
 #include <stdio.h>
 
 #ifdef SERIAL_LINK_ENABLE
@@ -69,6 +69,8 @@ uint8_t get_max_wpm(void) {
   return max_wpm;
 }
 
+__attribute__((weak)) void set_hand_swap(bool do_swap) { }
+
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   uint8_t wpm = get_current_wpm();
   if (wpm > max_wpm) {
@@ -91,6 +93,9 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         snprintf(wpm_buf, WPM_BUF_SIZE, "%u", (keycode == WPM_MAX ? get_max_wpm() : wpm));
         send_string(wpm_buf);
       }
+      break;
+    case SH_T(KC_SPC):
+      set_hand_swap(record->event.pressed);
       break;
   }
   return true;
