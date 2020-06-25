@@ -1,3 +1,3 @@
-#include "../../../ergodox_infinity/keymaps/firetech/config.h"
+#include "config_keymap.h"
 
-#define QMK_KEYS_PER_SCAN 4
+#define QMK_KEYS_PER_SCAN  4
