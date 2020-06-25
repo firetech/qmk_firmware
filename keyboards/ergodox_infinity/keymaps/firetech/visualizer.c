@@ -37,7 +37,7 @@
 #include "led.h"
 #include "default_animations.h"
 #include "wpm.h"
-#include "keymap_wpm.h"
+#include "keymap_extra.h"
 
 #ifdef EE_HANDS
 #   include "eeconfig.h"
@@ -54,6 +54,18 @@ static const uint32_t swap_color    = LCD_COLOR(128, 0xFF, 0xFF);
 static const uint32_t fn_color      = LCD_COLOR(170, 0xFF, 0xFF);
 
 #define STAT_BUF_SIZE  20
+
+typedef struct {
+    uint8_t swap_hands;
+} visualizer_user_data_t;
+
+// Don't access from visualization function, use the visualizer state instead
+static visualizer_user_data_t user_data_keyboard = {
+    .swap_hands = 0,
+};
+
+_Static_assert(sizeof(visualizer_user_data_t) <= VISUALIZER_USER_DATA_SIZE,
+    "Please increase the VISUALIZER_USER_DATA_SIZE");
 
 
 /* Keyframes */
@@ -95,6 +107,7 @@ static bool keyframe_display_stats(keyframe_animation_t* animation, visualizer_s
     return false;
 }
 
+
 /* Animations */
 
 // Basically a faster version of default_startup_animation
@@ -108,6 +121,8 @@ static keyframe_animation_t startup_animation = {
         keyframe_fade_in
     },
 };
+
+static keyframe_animation_t* current_content_animation = NULL;
 
 static keyframe_animation_t left_animation = {
     .num_frames = 1,
@@ -144,6 +159,11 @@ void initialize_user_visualizer(visualizer_state_t* state) {
     start_keyframe_animation(&startup_animation);
 }
 
+void set_hand_swap(bool do_swap) {
+    user_data_keyboard.swap_hands = do_swap;
+    visualizer_set_user_data(&user_data_keyboard);
+}
+
 void update_user_visualizer_state(visualizer_state_t* state, visualizer_keyboard_status_t* prev_status) {
     uint32_t prev_color = state->target_lcd_color;
 
@@ -171,19 +191,31 @@ void update_user_visualizer_state(visualizer_state_t* state, visualizer_keyboard
         start_keyframe_animation(&color_animation);
     }
 
-    keyframe_animation_t* content_animation;
+    bool is_left;
 #ifdef EE_HANDS
-    if (eeconfig_read_handedness()) {
+    is_left = eeconfig_read_handedness();
 #elif defined(MASTER_IS_ON_RIGHT)
-    if (!is_keyboard_master()) {
+    is_left = is_keyboard_master();
 #else
-    if (is_keyboard_master()) {
+    is_left = is_keyboard_master();
 #endif
+    if (((visualizer_user_data_t*)state->status.user_data)->swap_hands) { is_left = !is_left; }
+
+    keyframe_animation_t* content_animation;
+    if (is_left) {
         content_animation = &left_animation;
     } else {
         content_animation = &right_animation;
     }
-    start_keyframe_animation(content_animation);
+    if (current_content_animation != content_animation || !content_animation->loop) {
+        if (current_content_animation) {
+            stop_keyframe_animation(current_content_animation);
+        }
+        start_keyframe_animation(content_animation);
+        current_content_animation = content_animation;
+    } else {
+        content_animation->need_update = true;
+    }
 }
 
 void user_visualizer_suspend(visualizer_state_t* state) {

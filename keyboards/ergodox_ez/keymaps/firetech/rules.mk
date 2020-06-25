@@ -1,5 +1,3 @@
-COMMAND_ENABLE = no
+include keyboards/$(KEYBOARD)/keymaps/$(KEYMAP)/rules_keymap.mk
 
-WPM_ENABLE = yes
-
-SRC += keymap_leds.c keymap_wpm.c
+SRC += keymap_leds.c

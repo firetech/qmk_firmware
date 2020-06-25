@@ -1,1 +1,0 @@
-../../../ergodox_infinity/keymaps/firetech/keymap_wpm.c
