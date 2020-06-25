@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "ergodox_ez.h"
+#include QMK_KEYBOARD_H
 
 uint16_t blink_timer = 0;
 bool blink_led_3 = false;
