@@ -43,11 +43,17 @@
 #   include "eeconfig.h"
 #endif
 
-/* Configuration */
-static const uint32_t default_color = LCD_COLOR(128, 0,    0xFF);
-static const uint32_t fn_color      = LCD_COLOR(128, 0xFF, 0xFF);
 
-#define STAT_BUF_SIZE 20
+/* Configuration */
+
+#define SWAP_LAYER  1
+#define FN_LAYER  2
+
+static const uint32_t default_color = LCD_COLOR(128, 0,    0xFF);
+static const uint32_t swap_color    = LCD_COLOR(128, 0xFF, 0xFF);
+static const uint32_t fn_color      = LCD_COLOR(170, 0xFF, 0xFF);
+
+#define STAT_BUF_SIZE  20
 
 
 /* Keyframes */
@@ -76,7 +82,7 @@ static bool keyframe_display_stats(keyframe_animation_t* animation, visualizer_s
     gdispClear(White);
     char stat_buf[STAT_BUF_SIZE];
 
-    if (state->status.layer & 0x2) {
+    if (state->status.layer & (1 << FN_LAYER)) {
         snprintf(stat_buf, STAT_BUF_SIZE, "Backlight: %3u%%", state->status.backlight_level * 100 / BACKLIGHT_LEVELS);
         gdispDrawString(0, 0, stat_buf, state->font_fixed5x8, Black);
     }
@@ -146,9 +152,16 @@ void update_user_visualizer_state(visualizer_state_t* state, visualizer_keyboard
         lcd_backlight_brightness(brightness);
     }
 
-    if (state->status.layer & (1 << 2)) {
+    if (state->status.layer & (1 << FN_LAYER)) {
         state->target_lcd_color = fn_color;
-        state->layer_text = "Fn";
+        if (state->status.layer & (1 << SWAP_LAYER)) {
+            state->layer_text = "Fn    (+ Swap)";
+        } else {
+            state->layer_text = "Fn";
+        }
+    } else if (state->status.layer & (1 << SWAP_LAYER)) {
+        state->target_lcd_color = swap_color;
+        state->layer_text = "Swap On Space";
     } else {
         state->target_lcd_color = default_color;
         state->layer_text = "Default";
