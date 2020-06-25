@@ -1,0 +1,7 @@
+#undef TAPPING_TOGGLE
+#define TAPPING_TOGGLE  2
+
+#undef TAPPING_TERM
+#define TAPPING_TERM  200
+
+#define PERMISSIVE_HOLD
