@@ -224,6 +224,7 @@ void user_visualizer_suspend(visualizer_state_t* state) {
     uint8_t s = LCD_SAT(state->current_lcd_color);
     state->target_lcd_color = LCD_COLOR(h, s, 0);
     start_keyframe_animation(&default_suspend_animation);
+    current_content_animation = NULL;
 }
 
 void user_visualizer_resume(visualizer_state_t* state) {
@@ -231,4 +232,5 @@ void user_visualizer_resume(visualizer_state_t* state) {
     state->current_lcd_color = default_color;
     state->target_lcd_color = default_color;
     start_keyframe_animation(&startup_animation);
+    current_content_animation = NULL;
 }
