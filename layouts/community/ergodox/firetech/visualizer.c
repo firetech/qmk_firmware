@@ -28,6 +28,8 @@
 #endif
 
 #include <stdio.h>
+#include <math.h>
+
 #include "visualizer.h"
 #include "visualizer_keyframes.h"
 #include "lcd_keyframes.h"
@@ -38,6 +40,7 @@
 #include "default_animations.h"
 #include "wpm.h"
 #include "keymap_extra.h"
+#include "bongocat.h"
 
 #ifdef EE_HANDS
 #   include "eeconfig.h"
@@ -54,6 +57,12 @@ static const uint32_t swap_color    = LCD_COLOR(128, 0xFF, 0xFF);
 static const uint32_t fn_color      = LCD_COLOR(170, 0xFF, 0xFF);
 
 #define STAT_BUF_SIZE  20
+
+#define WPM_ANIM_START  20  // Animation idle below this WPM value
+#define WPM_TO_FRAME_TIME(wpm)  (2565 - 537 * log(wpm))  // Formula to convert WPM to frame time
+
+static uint8_t wpm_anim_at_frame = 1;
+static uint16_t wpm_anim_timer = 0;
 
 typedef struct {
     uint8_t swap_hands;
@@ -91,20 +100,36 @@ static bool keyframe_fade_in(keyframe_animation_t* animation, visualizer_state_t
 }
 
 static bool keyframe_display_stats(keyframe_animation_t* animation, visualizer_state_t* state) {
-    gdispClear(White);
     char stat_buf[STAT_BUF_SIZE];
+    uint8_t wpm = get_current_wpm();
+    bool wpm_anim = false;
+
+    gdispClear(White);
+
+    const uint8_t* wpm_anim_frame = bongocat[0];
+    if (wpm >= WPM_ANIM_START) {
+        wpm_anim_frame = bongocat[wpm_anim_at_frame];
+
+        if (timer_elapsed(wpm_anim_timer) >= WPM_TO_FRAME_TIME(wpm)) {
+            wpm_anim_at_frame = 3 - wpm_anim_at_frame;
+            wpm_anim_timer = timer_read();
+        }
+        wpm_anim = true;
+    }
+
+    gdispGBlitArea(GDISP, LCD_WIDTH - BONGOCAT_WIDTH, 0, BONGOCAT_WIDTH, BONGOCAT_HEIGHT, 0, 0, BONGOCAT_LINEWIDTH, (pixel_t*)wpm_anim_frame);
 
     if (state->status.layer & (1 << FN_LAYER)) {
         snprintf(stat_buf, STAT_BUF_SIZE, "Backlight: %3u%%", state->status.backlight_level * 100 / BACKLIGHT_LEVELS);
         gdispDrawString(0, 0, stat_buf, state->font_fixed5x8, Black);
     }
 
-    snprintf(stat_buf, STAT_BUF_SIZE, "WPM: %3u", get_current_wpm());
+    snprintf(stat_buf, STAT_BUF_SIZE, "WPM: %3u", wpm);
     gdispDrawString(0, 10, stat_buf, state->font_dejavusansbold12, Black);
     snprintf(stat_buf, STAT_BUF_SIZE, "Max: %3u", get_max_wpm());
     gdispDrawString(20, 20, stat_buf, state->font_fixed5x8, Black);
 
-    return false;
+    return wpm_anim;
 }
 
 
