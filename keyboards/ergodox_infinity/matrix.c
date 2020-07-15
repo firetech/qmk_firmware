@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "matrix.h"
 #include "eeconfig.h"
 #include "serial_link/system/serial_link.h"
+#include "debounce.h"
 
 
 /*
@@ -37,10 +38,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *     row: { PTB2, PTB3, PTB18, PTB19, PTC0, PTC9, PTC10, PTC11, PTD0 }
  */
 /* matrix state(1:on, 0:off) */
-static matrix_row_t matrix[MATRIX_ROWS];
-static matrix_row_t matrix_debouncing[LOCAL_MATRIX_ROWS];
-static bool debouncing = false;
-static uint16_t debouncing_time = 0;
+static matrix_row_t raw_matrix[LOCAL_MATRIX_ROWS];  // raw values
+static matrix_row_t matrix[MATRIX_ROWS];      // debounced values
 
 
 void matrix_init(void)
@@ -63,14 +62,17 @@ void matrix_init(void)
     palSetPadMode(GPIOC, 11, PAL_MODE_OUTPUT_PUSHPULL);
     palSetPadMode(GPIOD, 0,  PAL_MODE_OUTPUT_PUSHPULL);
 
+    memset(raw_matrix, 0, LOCAL_MATRIX_ROWS * sizeof(matrix_row_t));
     memset(matrix, 0, MATRIX_ROWS * sizeof(matrix_row_t));
-    memset(matrix_debouncing, 0, LOCAL_MATRIX_ROWS * sizeof(matrix_row_t));
+
+    debounce_init(LOCAL_MATRIX_ROWS);
 
     matrix_init_quantum();
 }
 
 uint8_t matrix_scan(void)
 {
+    bool changed = false;
     for (int row = 0; row < LOCAL_MATRIX_ROWS; row++) {
         matrix_row_t data = 0;
 
@@ -111,10 +113,9 @@ uint8_t matrix_scan(void)
             case 8: palClearPad(GPIOD, 0);  break;
         }
 
-        if (matrix_debouncing[row] != data) {
-            matrix_debouncing[row] = data;
-            debouncing = true;
-            debouncing_time = timer_read();
+        if (raw_matrix[row] != data) {
+            raw_matrix[row] = data;
+            changed = true;
         }
     }
 
@@ -129,12 +130,8 @@ uint8_t matrix_scan(void)
     }
 #endif
 
-    if (debouncing && timer_elapsed(debouncing_time) > DEBOUNCE) {
-        for (int row = 0; row < LOCAL_MATRIX_ROWS; row++) {
-            matrix[offset + row] = matrix_debouncing[row];
-        }
-        debouncing = false;
-    }
+    debounce(raw_matrix, &matrix[offset], LOCAL_MATRIX_ROWS, changed);
+
     matrix_scan_quantum();
     return 1;
 }
