@@ -64,6 +64,8 @@ static const uint32_t fn_color      = LCD_COLOR(170, 0xFF, 0xFF);
 static uint8_t wpm_anim_at_frame = 1;
 static uint16_t wpm_anim_timer = 0;
 
+static uint8_t last_backlight = 0;
+
 typedef struct {
     uint8_t swap_hands;
 } visualizer_user_data_t;
@@ -167,9 +169,6 @@ static keyframe_animation_t right_animation = {
 static keyframe_animation_t color_animation = {
     .num_frames = 1,
     .loop = false,
-    // Note that there's a 50 ms no-operation frame,
-    // this prevents the color from changing when activating the layer
-    // momentarily
     .frame_lengths = {gfxMillisecondsToTicks(150)},
     .frame_functions = {lcd_backlight_keyframe_animate_color},
 };
@@ -192,7 +191,8 @@ void set_hand_swap(bool do_swap) {
 void update_user_visualizer_state(visualizer_state_t* state, visualizer_keyboard_status_t* prev_status) {
     uint32_t prev_color = state->target_lcd_color;
 
-    uint8_t brightness = state->status.backlight_level * 0xFF / BACKLIGHT_LEVELS;
+    last_backlight = state->status.backlight_level;
+    uint8_t brightness = last_backlight * 0xFF / BACKLIGHT_LEVELS;
     if (lcd_get_backlight_brightness() != brightness) {
         lcd_backlight_brightness(brightness);
     }
@@ -253,6 +253,7 @@ void user_visualizer_suspend(visualizer_state_t* state) {
 }
 
 void user_visualizer_resume(visualizer_state_t* state) {
+    backlight_set(last_backlight); // Chibios suspend sets this to 0, so we need to reset the value.
     lcd_backlight_brightness(0);
     state->current_lcd_color = default_color;
     state->target_lcd_color = default_color;
