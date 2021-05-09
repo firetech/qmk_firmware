@@ -8,7 +8,9 @@
 
 #ifdef KEYBOARD_ergodox_infinity
 #    undef BACKLIGHT_LEVELS
-#    define BACKLIGHT_LEVELS  10
+#    define BACKLIGHT_LEVELS  5
+#    undef LED_MATRIX_VAL_STEP
+#    define LED_MATRIX_VAL_STEP 51
 
 #    define EE_HANDS
 #endif
