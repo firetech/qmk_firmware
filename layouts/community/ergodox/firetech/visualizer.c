@@ -16,15 +16,15 @@
  */
 
 #ifndef LCD_BACKLIGHT_ENABLE
-#error This visualizer needs that LCD backlight is enabled
+#    error This visualizer needs that LCD backlight is enabled
 #endif
 
 #ifndef LCD_ENABLE
-#error This visualizer needs that LCD is enabled
+#    error This visualizer needs that LCD is enabled
 #endif
 
-#ifndef BACKLIGHT_ENABLE
-#error This visualizer needs that keyboard backlight is enabled
+#if !defined(LED_MATRIX_ENABLE) && !defined(BACKLIGHT_ENABLE) && !defined(LCD_BACKLIGHT_LEVEL)
+#    define LCD_BACKLIGHT_LEVEL 0x99
 #endif
 
 #include <stdio.h>
@@ -34,17 +34,14 @@
 #include "visualizer_keyframes.h"
 #include "lcd_keyframes.h"
 #include "lcd_backlight_keyframes.h"
-#include "led_backlight_keyframes.h"
-#include "system/serial_link.h"
+#ifdef BACKLIGHT_ENABLE
+#    include "led_backlight_keyframes.h"
+#endif
 #include "led.h"
 #include "default_animations.h"
 #include "wpm.h"
 #include "keymap_extra.h"
 #include "bongocat.h"
-
-#ifdef EE_HANDS
-#   include "eeconfig.h"
-#endif
 
 
 /* Configuration */
@@ -64,7 +61,9 @@ static const uint32_t fn_color      = LCD_COLOR(170, 0xFF, 0xFF);
 static uint8_t wpm_anim_at_frame = 1;
 static uint16_t wpm_anim_timer = 0;
 
+#ifdef BACKLIGHT_ENABLE
 static uint8_t last_backlight = 0;
+#endif
 
 typedef struct {
     uint8_t swap_hands;
@@ -83,19 +82,29 @@ _Static_assert(sizeof(visualizer_user_data_t) <= VISUALIZER_USER_DATA_SIZE,
 
 static bool keyframe_enable(keyframe_animation_t* animation, visualizer_state_t* state) {
     bool ret = false;
+#ifdef BACKLIGHT_ENABLE
     ret |= led_backlight_keyframe_enable(animation, state);
+#endif
     ret |= lcd_keyframe_enable(animation, state);
     ret |= lcd_backlight_keyframe_enable(animation, state);
     return ret;
 }
 
 static bool keyframe_fade_in(keyframe_animation_t* animation, visualizer_state_t* state) {
+#ifdef BACKLIGHT_ENABLE
     led_backlight_keyframe_fade_in_all(animation, state);
+#endif
 
     // Fade in using brightness setting. That way, we end up at the correct value in the end.
     int frame_length = animation->frame_lengths[animation->current_frame];
     int current_pos  = frame_length - animation->time_left_in_frame;
+#if defined(LED_MATRIX_ENABLE)
+    uint8_t brightness = led_matrix_get_val();
+#elif defined(BACKLIGHT_ENABLE)
     uint8_t brightness = state->status.backlight_level * 0xFF / BACKLIGHT_LEVELS;
+#else
+    uint8_t brightness = LCD_BACKLIGHT_LEVEL;
+#endif
     lcd_backlight_brightness(brightness * current_pos / frame_length);
 
     return true;
@@ -104,7 +113,7 @@ static bool keyframe_fade_in(keyframe_animation_t* animation, visualizer_state_t
 static bool keyframe_display_stats(keyframe_animation_t* animation, visualizer_state_t* state) {
     char stat_buf[STAT_BUF_SIZE];
     uint8_t wpm = get_current_wpm();
-    bool wpm_anim = false;
+    bool quick_update = false;
 
     gdispClear(White);
 
@@ -116,22 +125,33 @@ static bool keyframe_display_stats(keyframe_animation_t* animation, visualizer_s
             wpm_anim_at_frame = 3 - wpm_anim_at_frame;
             wpm_anim_timer = timer_read();
         }
-        wpm_anim = true;
+        quick_update = true;
     }
 
     gdispGBlitArea(GDISP, LCD_WIDTH - BONGOCAT_WIDTH, 0, BONGOCAT_WIDTH, BONGOCAT_HEIGHT, 0, 0, BONGOCAT_LINEWIDTH, (pixel_t*)wpm_anim_frame);
 
+#if defined(LED_MATRIX_ENABLE) || defined(BACKLIGHT_ENABLE)
     if (state->status.layer & (1 << FN_LAYER)) {
-        snprintf(stat_buf, STAT_BUF_SIZE, "Backlight: %3u%%", state->status.backlight_level * 100 / BACKLIGHT_LEVELS);
+#    if defined(LED_MATRIX_ENABLE)
+        quick_update = true;
+        uint8_t backlight_level = 0;
+        if (led_matrix_is_enabled()) {
+            backlight_level = led_matrix_get_val() * 100.0 / UINT8_MAX;
+        }
+#    elif defined(BACKLIGHT_ENABLE)
+        uint8_t backlight_level = state->status.backlight_level * 100.0 / BACKLIGHT_LEVELS;
+#    endif
+        snprintf(stat_buf, STAT_BUF_SIZE, "Backlight: %3u%%", backlight_level);
         gdispDrawString(0, 0, stat_buf, state->font_fixed5x8, Black);
     }
+#endif
 
     snprintf(stat_buf, STAT_BUF_SIZE, "WPM: %3u", wpm);
     gdispDrawString(0, 10, stat_buf, state->font_dejavusansbold12, Black);
     snprintf(stat_buf, STAT_BUF_SIZE, "Max: %3u", get_max_wpm());
     gdispDrawString(20, 20, stat_buf, state->font_fixed5x8, Black);
 
-    return wpm_anim;
+    return quick_update;
 }
 
 
@@ -191,8 +211,15 @@ void set_hand_swap(bool do_swap) {
 void update_user_visualizer_state(visualizer_state_t* state, visualizer_keyboard_status_t* prev_status) {
     uint32_t prev_color = state->target_lcd_color;
 
+#if defined(LED_MATRIX_ENABLE)
+    uint8_t brightness = led_matrix_get_val();
+#elif defined(BACKLIGHT_ENABLE)
     last_backlight = state->status.backlight_level;
-    uint8_t brightness = last_backlight * 0xFF / BACKLIGHT_LEVELS;
+    uint8_t brightness = last_backlight;
+    brightness *= 0xFF / BACKLIGHT_LEVELS;
+#else
+    uint8_t brightness = LCD_BACKLIGHT_LEVEL;
+#endif
     if (lcd_get_backlight_brightness() != brightness) {
         lcd_backlight_brightness(brightness);
     }
@@ -216,14 +243,7 @@ void update_user_visualizer_state(visualizer_state_t* state, visualizer_keyboard
         start_keyframe_animation(&color_animation);
     }
 
-    bool is_left;
-#ifdef EE_HANDS
-    is_left = eeconfig_read_handedness();
-#elif defined(MASTER_IS_ON_RIGHT)
-    is_left = is_keyboard_master();
-#else
-    is_left = is_keyboard_master();
-#endif
+    bool is_left = is_keyboard_left();
     if (((visualizer_user_data_t*)state->status.user_data)->swap_hands) { is_left = !is_left; }
 
     keyframe_animation_t* content_animation;
@@ -253,7 +273,9 @@ void user_visualizer_suspend(visualizer_state_t* state) {
 }
 
 void user_visualizer_resume(visualizer_state_t* state) {
+#ifdef BACKLIGHT_ENABLE
     backlight_set(last_backlight); // Chibios suspend sets this to 0, so we need to reset the value.
+#endif
     lcd_backlight_brightness(0);
     state->current_lcd_color = default_color;
     state->target_lcd_color = default_color;
