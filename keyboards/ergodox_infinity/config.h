@@ -54,7 +54,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /* key matrix size */
 #define MATRIX_ROWS 18
 #define MATRIX_COLS 5
-#define LOCAL_MATRIX_ROWS 9
+
+// For some reason, the rows are colums in the schematic, and vice versa
+#define MATRIX_ROW_PINS { B2, B3, B18, B19, C0, C9, C10, C11, D0 }
+#define MATRIX_COL_PINS { D1, D4, D5, D6, D7 }
+#define UNUSED_PINS
+
+/* COL2ROW, ROW2COL */
+#define DIODE_DIRECTION ROW2COL
 
 /* number of backlight levels */
 #define BACKLIGHT_LEVELS 3
@@ -83,10 +90,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /* Set 0 if debouncing isn't needed */
 #define DEBOUNCE    5
 
-#define SERIAL_LINK_BAUD 562500
-#define SERIAL_LINK_THREAD_PRIORITY (NORMALPRIO - 1)
-
 #define VISUALIZER_USER_DATA_SIZE 16
+
 /*
  * Feature disable options
  *  These options are also useful to firmware size reduction.
