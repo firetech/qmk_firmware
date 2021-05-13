@@ -13,6 +13,11 @@
 #    define LED_MATRIX_VAL_STEP 51
 
 #    define EE_HANDS
+
+#    define SPLIT_WPM_ENABLE
+#    define SPLIT_TRANSACTION_IDS_USER  MAX_WPM
+#    define SPLIT_TRANSPORT_MIRROR
+#    define LED_MATRIX_KEYREACTIVE_ENABLED
 #endif
 
 #ifdef KEYBOARD_ergodox_ez
