@@ -12,14 +12,11 @@ MOUSEKEY_ENABLE  = yes # Mouse keys
 EXTRAKEY_ENABLE  = yes # Audio control and System control
 CONSOLE_ENABLE   = no  # Console for debug
 COMMAND_ENABLE   = yes # Commands for debug and configuration
-CUSTOM_MATRIX    = yes # Custom matrix file for the ErgoDox EZ
 SLEEP_LED_ENABLE = yes # Breathing sleep LED during USB suspend
 NKRO_ENABLE      = yes # USB Nkey Rollover - if this doesn't work, see here: https://github.com/tmk/tmk_keyboard/wiki/FAQ#nkro-doesnt-work
 UNICODE_ENABLE   = yes # Unicode
 SWAP_HANDS_ENABLE= yes # Allow swapping hands of keyboard
 
-CUSTOM_MATRIX = yes # Custom matrix file
-SERIAL_LINK_ENABLE = yes
 VISUALIZER_ENABLE = yes
 LCD_ENABLE = yes
 LCD_BACKLIGHT_ENABLE = yes
@@ -33,8 +30,10 @@ LCD_HEIGHT = 32
 LED_MATRIX_ENABLE = yes
 LED_MATRIX_DRIVER = IS31FL3731
 
+SPLIT_KEYBOARD = yes
+SERIAL_DRIVER = usart
+
 # project specific files
-SRC = matrix.c \
-      led.c
+SRC = led.c
 
 LAYOUTS = ergodox
