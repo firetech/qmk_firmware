@@ -69,7 +69,7 @@ static visualizer_keyboard_status_t current_status = {.layer         = 0xFFFFFFF
 #endif
 };
 
-static bool same_status(visualizer_keyboard_status_t* status1, visualizer_keyboard_status_t* status2) {
+static bool same_status(const visualizer_keyboard_status_t* status1, const visualizer_keyboard_status_t* status2) {
     return status1->layer == status2->layer && status1->default_layer == status2->default_layer && status1->mods == status2->mods && status1->leds == status2->leds && status1->suspended == status2->suspended
 #ifdef BACKLIGHT_ENABLE
            && status1->backlight_level == status2->backlight_level
@@ -396,17 +396,21 @@ void update_status(bool changed) {
             geventSendEvent(listener);
         }
     }
-#ifdef SERIAL_LINK_ENABLE
     static systime_t last_update    = 0;
     systime_t        current_update = chVTGetSystemTimeX();
     systime_t        delta          = current_update - last_update;
     if (changed || delta > TIME_MS2I(10)) {
+#ifdef SERIAL_LINK_ENABLE
         last_update                     = current_update;
         visualizer_keyboard_status_t* r = begin_write_current_status();
         *r                              = current_status;
         end_write_current_status();
-    }
+#else
+        if (is_keyboard_master()) {
+            visualizer_transport_update(&current_status);
+        }
 #endif
+    }
 }
 
 uint8_t visualizer_get_mods() {
@@ -442,7 +446,7 @@ void visualizer_update(layer_state_t default_state, layer_state_t state, uint8_t
         }
     } else {
 #else
-    {
+    if (is_keyboard_master()) {
 #endif
         visualizer_keyboard_status_t new_status = {
             .layer         = state,
@@ -480,4 +484,15 @@ void backlight_set(uint8_t level) {
     current_status.backlight_level = level;
     update_status(true);
 }
+#endif
+
+#ifndef SERIAL_LINK_ENABLE
+void visualizer_set_status(const visualizer_keyboard_status_t *new_status) {
+    if (new_status && !same_status(&current_status, new_status)) {
+        memcpy(&current_status, new_status, sizeof(current_status));
+        update_status(true);
+    }
+}
+
+__attribute__((weak)) void visualizer_transport_update(const visualizer_keyboard_status_t *new_status) {}
 #endif

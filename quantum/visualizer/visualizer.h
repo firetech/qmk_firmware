@@ -82,6 +82,15 @@ typedef struct {
 #endif
 } visualizer_keyboard_status_t;
 
+#ifndef SERIAL_LINK_ENABLE
+// Functions needed when using another transport than Serial Link
+// Set current status
+void visualizer_set_status(const visualizer_keyboard_status_t *);
+// Called when status should be updated
+void visualizer_transport_update(const visualizer_keyboard_status_t *);
+#endif
+
+
 // The state struct is used by the various keyframe functions
 // It's also used for setting the LCD color and layer text
 // from the user customized code

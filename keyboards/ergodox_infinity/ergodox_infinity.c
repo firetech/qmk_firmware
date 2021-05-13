@@ -5,6 +5,7 @@
 #include "eeconfig.h"
 #include "serial_link/system/serial_link.h"
 #ifdef VISUALIZER_ENABLE
+#    include "visualizer.h"
 #    include "lcd_backlight.h"
 #endif
 
@@ -293,4 +294,35 @@ led_config_t g_led_config = {
                        1, 1, 1,
     }
 };
+#endif  // LED_MATRIX_ENABLE
+
+
+#if defined(SPLIT_KEYBOARD) && defined(VISUALIZER_ENABLE)
+#    include "transactions.h"
+void visualizer_sync_slave_handler(uint8_t in_buflen, const void* in_data, uint8_t out_buflen, void* out_data) {
+    visualizer_set_status((const visualizer_keyboard_status_t *)in_data);
+}
+
+static bool visualizer_status_changed = false;
+static visualizer_keyboard_status_t visualizer_status;
+
+void visualizer_transport_update(const visualizer_keyboard_status_t *new_status) {
+    visualizer_status = *new_status;
+    visualizer_status_changed = true;
+}
+
+void housekeeping_task_kb(void) {
+    if (visualizer_status_changed) {
+        if (transaction_rpc_send(VISUALIZER_SYNC, sizeof(visualizer_keyboard_status_t), &visualizer_status)) {
+            visualizer_status_changed = false;
+        }
+    }
+}
 #endif
+
+void keyboard_post_init_kb(void) {
+#if defined(SPLIT_KEYBOARD) && defined(VISUALIZER_ENABLE)
+    transaction_register_rpc(VISUALIZER_SYNC, visualizer_sync_slave_handler);
+#endif
+    keyboard_post_init_user();
+}
