@@ -305,17 +305,27 @@ void visualizer_sync_slave_handler(uint8_t in_buflen, const void* in_data, uint8
 
 static bool visualizer_status_changed = false;
 static visualizer_keyboard_status_t visualizer_status;
+static bool last_visualizer_suspended = false;
+
+void send_visualizer_update(void) {
+    if (transaction_rpc_send(VISUALIZER_SYNC, sizeof(visualizer_status), &visualizer_status)) {
+        visualizer_status_changed = false;
+    }
+}
 
 void visualizer_transport_update(const visualizer_keyboard_status_t *new_status) {
-    visualizer_status = *new_status;
+    memcpy(&visualizer_status, new_status, sizeof(visualizer_status));
     visualizer_status_changed = true;
+    if (new_status->suspended && !last_visualizer_suspended) {
+        // Try to send update immediately, as housekeeping will not be done while suspended
+        send_visualizer_update();
+    }
+    last_visualizer_suspended = new_status->suspended;
 }
 
 void housekeeping_task_kb(void) {
     if (visualizer_status_changed) {
-        if (transaction_rpc_send(VISUALIZER_SYNC, sizeof(visualizer_keyboard_status_t), &visualizer_status)) {
-            visualizer_status_changed = false;
-        }
+        send_visualizer_update();
     }
 }
 #endif
