@@ -1,13 +1,20 @@
-#include "quantum.h"
-#include "serial.h"
-#include "print.h"
+/* Copyright 2021 QMK
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-#include <ch.h>
-#include <hal.h>
-
-#ifndef USART_CR1_M0
-#    define USART_CR1_M0 USART_CR1_M  // some platforms (f1xx) dont have this so
-#endif
+#include "serial_usart.h"
 
 #ifndef USE_GPIOV1
 // The default PAL alternate modes are used to signal that the pins are used for USART
@@ -20,49 +27,9 @@
 #    define SERIAL_USART_DRIVER SD1
 #endif
 
-#ifndef SERIAL_USART_CR1
-#    define SERIAL_USART_CR1 (USART_CR1_PCE | USART_CR1_PS | USART_CR1_M0)  // parity enable, odd parity, 9 bit length
-#endif
-
-#ifndef SERIAL_USART_CR2
-#    define SERIAL_USART_CR2 (USART_CR2_STOP_1)  // 2 stop bits
-#endif
-
-#ifndef SERIAL_USART_CR3
-#    define SERIAL_USART_CR3 0
-#endif
-
 #ifdef SOFT_SERIAL_PIN
 #    define SERIAL_USART_TX_PIN SOFT_SERIAL_PIN
 #endif
-
-#ifndef SELECT_SOFT_SERIAL_SPEED
-#    define SELECT_SOFT_SERIAL_SPEED 1
-#endif
-
-#ifdef SERIAL_USART_SPEED
-// Allow advanced users to directly set SERIAL_USART_SPEED
-#elif SELECT_SOFT_SERIAL_SPEED == 0
-#    define SERIAL_USART_SPEED 460800
-#elif SELECT_SOFT_SERIAL_SPEED == 1
-#    define SERIAL_USART_SPEED 230400
-#elif SELECT_SOFT_SERIAL_SPEED == 2
-#    define SERIAL_USART_SPEED 115200
-#elif SELECT_SOFT_SERIAL_SPEED == 3
-#    define SERIAL_USART_SPEED 57600
-#elif SELECT_SOFT_SERIAL_SPEED == 4
-#    define SERIAL_USART_SPEED 38400
-#elif SELECT_SOFT_SERIAL_SPEED == 5
-#    define SERIAL_USART_SPEED 19200
-#else
-#    error invalid SELECT_SOFT_SERIAL_SPEED value
-#endif
-
-#ifndef SERIAL_USART_TIMEOUT
-#    define SERIAL_USART_TIMEOUT 100
-#endif
-
-#define HANDSHAKE_MAGIC 7
 
 static inline msg_t sdWriteHalfDuplex(SerialDriver* driver, uint8_t* data, uint8_t size) {
     msg_t ret = sdWrite(driver, data, size);
@@ -123,6 +90,10 @@ __attribute__((weak)) void usart_init(void) {
 #else
     palSetLineMode(SERIAL_USART_TX_PIN, PAL_MODE_ALTERNATE(SERIAL_USART_TX_PAL_MODE) | PAL_STM32_OTYPE_OPENDRAIN);
 #endif
+
+#if defined(USART_REMAP)
+    USART_REMAP;
+#endif
 }
 
 void usart_master_init(void) {
@@ -142,37 +113,29 @@ void usart_slave_init(void) {
     chThdCreateStatic(waSlaveThread, sizeof(waSlaveThread), HIGHPRIO, SlaveThread, NULL);
 }
 
-static SSTD_t* Transaction_table      = NULL;
-static uint8_t Transaction_table_size = 0;
+void soft_serial_initiator_init(void) { usart_master_init(); }
 
-void soft_serial_initiator_init(SSTD_t* sstd_table, int sstd_table_size) {
-    Transaction_table      = sstd_table;
-    Transaction_table_size = (uint8_t)sstd_table_size;
-
-    usart_master_init();
-}
-
-void soft_serial_target_init(SSTD_t* sstd_table, int sstd_table_size) {
-    Transaction_table      = sstd_table;
-    Transaction_table_size = (uint8_t)sstd_table_size;
-
-    usart_slave_init();
-}
+void soft_serial_target_init(void) { usart_slave_init(); }
 
 void handle_soft_serial_slave(void) {
-    uint8_t sstd_index = sdGet(&SERIAL_USART_DRIVER);  // first chunk is always transaction id
-    SSTD_t* trans      = &Transaction_table[sstd_index];
+    uint8_t                   sstd_index = sdGet(&SERIAL_USART_DRIVER);  // first chunk is always transaction id
+    split_transaction_desc_t* trans      = &split_transaction_table[sstd_index];
 
     // Always write back the sstd_index as part of a basic handshake
     sstd_index ^= HANDSHAKE_MAGIC;
     sdWrite(&SERIAL_USART_DRIVER, &sstd_index, sizeof(sstd_index));
 
     if (trans->initiator2target_buffer_size) {
-        sdRead(&SERIAL_USART_DRIVER, trans->initiator2target_buffer, trans->initiator2target_buffer_size);
+        sdRead(&SERIAL_USART_DRIVER, split_trans_initiator2target_buffer(trans), trans->initiator2target_buffer_size);
+    }
+
+    // Allow any slave processing to occur
+    if (trans->slave_callback) {
+        trans->slave_callback(trans->initiator2target_buffer_size, split_trans_initiator2target_buffer(trans), trans->target2initiator_buffer_size, split_trans_target2initiator_buffer(trans));
     }
 
     if (trans->target2initiator_buffer_size) {
-        sdWrite(&SERIAL_USART_DRIVER, trans->target2initiator_buffer, trans->target2initiator_buffer_size);
+        sdWrite(&SERIAL_USART_DRIVER, split_trans_target2initiator_buffer(trans), trans->target2initiator_buffer_size);
     }
 
     if (trans->status) {
@@ -189,17 +152,14 @@ void handle_soft_serial_slave(void) {
 //    TRANSACTION_END
 //    TRANSACTION_NO_RESPONSE
 //    TRANSACTION_DATA_ERROR
-#ifndef SERIAL_USE_MULTI_TRANSACTION
-int soft_serial_transaction(void) {
-    uint8_t sstd_index = 0;
-#else
 int soft_serial_transaction(int index) {
     uint8_t sstd_index = index;
-#endif
 
-    if (sstd_index > Transaction_table_size) return TRANSACTION_TYPE_ERROR;
-    SSTD_t* trans = &Transaction_table[sstd_index];
-    msg_t   res   = 0;
+    if (sstd_index > NUM_TOTAL_TRANSACTIONS) return TRANSACTION_TYPE_ERROR;
+    split_transaction_desc_t* trans = &split_transaction_table[sstd_index];
+    msg_t                     res   = 0;
+
+    if (!trans->status) return TRANSACTION_TYPE_ERROR;  // not registered
 
     sdClear(&SERIAL_USART_DRIVER);
 
@@ -218,7 +178,7 @@ int soft_serial_transaction(int index) {
     }
 
     if (trans->initiator2target_buffer_size) {
-        res = sdWriteTimeout(&SERIAL_USART_DRIVER, trans->initiator2target_buffer, trans->initiator2target_buffer_size, TIME_MS2I(SERIAL_USART_TIMEOUT));
+        res = sdWriteTimeout(&SERIAL_USART_DRIVER, split_trans_initiator2target_buffer(trans), trans->initiator2target_buffer_size, TIME_MS2I(SERIAL_USART_TIMEOUT));
         if (res < 0) {
             dprintf("serial::usart_transmit NO_RESPONSE\n");
             return TRANSACTION_NO_RESPONSE;
@@ -226,7 +186,7 @@ int soft_serial_transaction(int index) {
     }
 
     if (trans->target2initiator_buffer_size) {
-        res = sdReadTimeout(&SERIAL_USART_DRIVER, trans->target2initiator_buffer, trans->target2initiator_buffer_size, TIME_MS2I(SERIAL_USART_TIMEOUT));
+        res = sdReadTimeout(&SERIAL_USART_DRIVER, split_trans_target2initiator_buffer(trans), trans->target2initiator_buffer_size, TIME_MS2I(SERIAL_USART_TIMEOUT));
         if (res < 0) {
             dprintf("serial::usart_receive NO_RESPONSE\n");
             return TRANSACTION_NO_RESPONSE;

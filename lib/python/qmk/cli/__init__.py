@@ -12,7 +12,6 @@ from subprocess import run
 from milc import cli, __VERSION__
 from milc.questions import yesno
 
-
 import_names = {
     # A mapping of package name to importable name
     'pep8-naming': 'pep8ext_naming',
@@ -149,12 +148,13 @@ if not args or args[0] not in safe_commands:
             exit(1)
 
 # Import our subcommands
+from . import bux  # noqa
 from . import c2json  # noqa
 from . import cformat  # noqa
 from . import chibios  # noqa
 from . import clean  # noqa
 from . import compile  # noqa
-from . import config  # noqa
+from milc.subcommand import config  # noqa
 from . import console  # noqa
 from . import docs  # noqa
 from . import doctor  # noqa
