@@ -72,7 +72,8 @@ uint8_t get_max_wpm(void) {
     return max_wpm;
 }
 
-__attribute__((weak)) void set_hand_swap(bool do_swap) { }
+__attribute__((weak)) void set_hand_swap(bool do_swap) {}
+__attribute__((weak)) void on_backlight_change(void) {}
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     uint8_t wpm = get_current_wpm();
@@ -85,7 +86,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 set_max_wpm(0);
                 set_current_wpm(0);
             }
-            break;
+            return false;
         case WPM_MAX:
         case WPM_CURR:
             if (record->event.pressed) {
@@ -93,9 +94,21 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 snprintf(wpm_buf, WPM_BUF_SIZE, "%u", (keycode == WPM_MAX ? get_max_wpm() : wpm));
                 send_string(wpm_buf);
             }
-            break;
+            return false;
+
         case SH_T(KC_SPC):
             set_hand_swap(record->event.pressed);
+            break;
+        case BL_ON:
+        case BL_OFF:
+        case BL_DEC:
+        case BL_INC:
+        case BL_TOGG:
+        case BL_STEP:
+        case BL_BRTG:
+            if (!record->event.pressed) {
+                on_backlight_change();
+            }
             break;
     }
     return true;
