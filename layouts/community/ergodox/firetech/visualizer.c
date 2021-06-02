@@ -61,17 +61,15 @@ static const uint32_t fn_color      = LCD_COLOR(170, 0xFF, 0xFF);
 static uint8_t wpm_anim_at_frame = 1;
 static uint16_t wpm_anim_timer = 0;
 
-#ifdef BACKLIGHT_ENABLE
-static uint8_t last_backlight = 0;
-#endif
-
 typedef struct {
     uint8_t swap_hands;
+    uint8_t last_backlight;
 } visualizer_user_data_t;
 
 // Don't access from visualization function, use the visualizer state instead
 static visualizer_user_data_t user_data_keyboard = {
     .swap_hands = 0,
+    .last_backlight = 0,
 };
 
 _Static_assert(sizeof(visualizer_user_data_t) <= VISUALIZER_USER_DATA_SIZE,
@@ -134,9 +132,10 @@ static bool keyframe_display_stats(keyframe_animation_t* animation, visualizer_s
     if (state->status.layer & (1 << FN_LAYER)) {
 #    if defined(LED_MATRIX_ENABLE)
         quick_update = true;
+        uint8_t brightness = led_matrix_get_val();
         uint8_t backlight_level = 0;
         if (led_matrix_is_enabled()) {
-            backlight_level = led_matrix_get_val() * 100.0 / UINT8_MAX;
+            backlight_level = brightness * 100.0 / UINT8_MAX;
         }
 #    elif defined(BACKLIGHT_ENABLE)
         uint8_t backlight_level = state->status.backlight_level * 100.0 / BACKLIGHT_LEVELS;
@@ -208,14 +207,26 @@ void set_hand_swap(bool do_swap) {
     visualizer_set_user_data(&user_data_keyboard);
 }
 
+#ifdef LED_MATRIX_ENABLE
+void on_backlight_change(void) {
+    uint8_t brightness = led_matrix_is_enabled() ? led_matrix_get_val() : 0;
+    if (user_data_keyboard.last_backlight != brightness) {
+        // Trigger a visualizer state update
+        user_data_keyboard.last_backlight = brightness;
+        visualizer_set_user_data(&user_data_keyboard);
+    }
+}
+#endif
+
 void update_user_visualizer_state(visualizer_state_t* state, visualizer_keyboard_status_t* prev_status) {
     uint32_t prev_color = state->target_lcd_color;
 
 #if defined(LED_MATRIX_ENABLE)
-    uint8_t brightness = led_matrix_get_val();
+    uint8_t brightness = led_matrix_is_enabled() ? led_matrix_get_val() : 0;
 #elif defined(BACKLIGHT_ENABLE)
-    last_backlight = state->status.backlight_level;
-    uint8_t brightness = last_backlight;
+    user_data_keyboard.last_backlight = state->status.backlight_level;
+    // Deliberately not calling set_user_data here, not needed for this value.
+    uint8_t brightness = user_data_keyboard.last_backlight;
     brightness *= 0xFF / BACKLIGHT_LEVELS;
 #else
     uint8_t brightness = LCD_BACKLIGHT_LEVEL;
@@ -244,7 +255,8 @@ void update_user_visualizer_state(visualizer_state_t* state, visualizer_keyboard
     }
 
     bool is_left = is_keyboard_left();
-    if (((visualizer_user_data_t*)state->status.user_data)->swap_hands) { is_left = !is_left; }
+    visualizer_user_data_t *user_data = (visualizer_user_data_t *)state->status.user_data;
+    if (user_data->swap_hands) { is_left = !is_left; }
 
     keyframe_animation_t* content_animation;
     if (is_left) {
@@ -274,7 +286,7 @@ void user_visualizer_suspend(visualizer_state_t* state) {
 
 void user_visualizer_resume(visualizer_state_t* state) {
 #ifdef BACKLIGHT_ENABLE
-    backlight_set(last_backlight); // Chibios suspend sets this to 0, so we need to reset the value.
+    backlight_set(user_data_keyboard.last_backlight); // Chibios suspend sets this to 0, so we need to reset the value.
 #endif
     lcd_backlight_brightness(0);
     state->current_lcd_color = default_color;
