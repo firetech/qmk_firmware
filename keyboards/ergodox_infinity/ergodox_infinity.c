@@ -88,7 +88,11 @@ static uint16_t cie_lightness(uint16_t v) {
     return y * 65535.0f;
 }
 
+#ifdef VISUALIZER_ENABLE
 void lcd_backlight_hal_color(uint16_t r, uint16_t g, uint16_t b) {
+#else
+void ergodox_infinity_lcd_color(uint16_t r, uint16_t g, uint16_t b) {
+#endif
     CHANNEL_RED.CnV   = cie_lightness(r);
     CHANNEL_GREEN.CnV = cie_lightness(g);
     CHANNEL_BLUE.CnV  = cie_lightness(b);
@@ -104,6 +108,9 @@ void keyboard_pre_init_kb() {
     // Turn on LED controller
     setPinOutput(B16);
     writePinHigh(B16);
+#endif
+#ifndef VISUALIZER_ENABLE
+    lcd_backlight_hal_init();
 #endif
     keyboard_pre_init_user();
 }

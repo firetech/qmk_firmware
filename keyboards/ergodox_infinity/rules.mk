@@ -17,15 +17,10 @@ NKRO_ENABLE      = yes # USB Nkey Rollover - if this doesn't work, see here: htt
 UNICODE_ENABLE   = yes # Unicode
 SWAP_HANDS_ENABLE= yes # Allow swapping hands of keyboard
 
-VISUALIZER_ENABLE = yes
-LCD_ENABLE = yes
-LCD_BACKLIGHT_ENABLE = yes
 MIDI_ENABLE = no
 RGBLIGHT_ENABLE = no
 
-LCD_DRIVER = st7565
-LCD_WIDTH = 128
-LCD_HEIGHT = 32
+ST7565_ENABLE = yes
 
 LED_MATRIX_ENABLE = yes
 LED_MATRIX_DRIVER = IS31FL3731
