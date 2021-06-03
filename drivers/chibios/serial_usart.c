@@ -318,6 +318,15 @@ static inline int initiate_transaction(uint8_t sstd_index) {
         return TRANSACTION_TYPE_ERROR;
     }
 
+    // Throttle transaction attempts if no slave has been found yet
+    // Without this, the keyboard becomes unusable without a slave connected
+    static bool serial_connected = false;
+    static uint16_t connection_check_timer = 0;
+    if (!serial_connected && timer_elapsed(connection_check_timer) < SERIAL_USART_TIMEOUT * 5) {
+        return TRANSACTION_NO_RESPONSE;
+    }
+    connection_check_timer = timer_read();
+
     /* Send transaction table index to the slave, which doubles as basic handshake token. */
     if (!send(&sstd_index, sizeof(sstd_index))) {
         dprintln("USART: Send Handshake failed.");
@@ -331,9 +340,14 @@ static inline int initiate_transaction(uint8_t sstd_index) {
      *   - without the read, write only transactions *always* succeed, even during the boot process where the slave is not ready.
      */
     if (!receive(&sstd_index_shake, sizeof(sstd_index_shake)) || (sstd_index_shake != (sstd_index ^ HANDSHAKE_MAGIC))) {
+        serial_connected = false;
         dprintln("USART: Handshake failed.");
         return TRANSACTION_NO_RESPONSE;
+    } else if (!serial_connected) {
+        dprintln("USART: connected");
     }
+
+    serial_connected = true;
 
     /* Send transaction buffer to the slave. If this transaction requires it. */
     if (trans->initiator2target_buffer_size) {
