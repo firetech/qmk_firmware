@@ -31,7 +31,7 @@ LED_MATRIX_ENABLE = yes
 LED_MATRIX_DRIVER = IS31FL3731
 
 SPLIT_KEYBOARD = yes
-SERIAL_DRIVER = daisy_usart
+SERIAL_DRIVER = usart
 
 # project specific files
 SRC = led.c

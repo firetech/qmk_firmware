@@ -336,3 +336,19 @@ void keyboard_post_init_kb(void) {
 #endif
     keyboard_post_init_user();
 }
+
+#if defined(SPLIT_KEYBOARD)
+void usart_master_init(SerialDriver **driver) {
+    PORTA->PCR[1] = PORTx_PCRn_PE | PORTx_PCRn_PS | PORTx_PCRn_PFE | PORTx_PCRn_MUX(2);
+    PORTA->PCR[2] = PORTx_PCRn_DSE | PORTx_PCRn_SRE | PORTx_PCRn_MUX(2);
+
+    // driver is set to SD1 in config.h
+}
+
+void usart_slave_init(SerialDriver **driver) {
+    PORTE->PCR[0] = PORTx_PCRn_PE | PORTx_PCRn_PS | PORTx_PCRn_PFE | PORTx_PCRn_MUX(3);
+    PORTE->PCR[1] = PORTx_PCRn_DSE | PORTx_PCRn_SRE | PORTx_PCRn_MUX(3);
+
+    *driver = &SD2;
+}
+#endif
