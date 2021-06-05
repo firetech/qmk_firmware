@@ -16,5 +16,8 @@
 
 #pragma once
 
+#define SWAP_LAYER  1
+#define FN_LAYER  2
+
 uint8_t get_max_wpm(void);
 void set_max_wpm(uint8_t);

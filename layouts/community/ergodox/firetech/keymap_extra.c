@@ -15,9 +15,14 @@
  */
 
 #include QMK_KEYBOARD_H
+#include <string.h>
+#include <stdio.h>
+
 #include "wpm.h"
 #include "keymap_extra.h"
-#include <stdio.h>
+#ifdef ST7565_ENABLE
+#    include "keymap_st7565.h"
+#endif
 
 #define WPM_BUF_SIZE 4
 
@@ -29,35 +34,58 @@ enum custom_keycodes {
 
 static uint8_t max_wpm = 0;
 
-#if defined(SPLIT_KEYBOARD) && defined(WPM_ENABLE)
+#if defined(SPLIT_KEYBOARD) && (defined(WPM_ENABLE) || defined(ST7565_ENABLE))
 #    include "transactions.h"
 
 #    ifndef FORCED_SYNC_THROTTLE_MS
 #        define FORCED_SYNC_THROTTLE_MS 100
 #    endif
 
+#    ifdef WPM_ENABLE
 void max_wpm_slave_handler(uint8_t in_buflen, const void* in_data, uint8_t out_buflen, void* out_data) {
     set_max_wpm(*((uint8_t *)in_data));
 }
 
 static bool max_wpm_changed = false;
+#    endif
+
+#    ifdef ST7565_ENABLE
+void display_state_slave_handler(uint8_t in_buflen, const void* in_data, uint8_t out_buflen, void* out_data) {
+    set_ft_display_state((ft_display_state_t *)in_data);
+}
+#    endif
 
 void housekeeping_task_user(void) {
     if (is_keyboard_master()) {
+#    ifdef WPM_ENABLE
         static uint16_t last_max_wpm_update = 0;
         if (max_wpm_changed || timer_elapsed(last_max_wpm_update) > FORCED_SYNC_THROTTLE_MS) {
-            if (transaction_rpc_send(MAX_WPM, sizeof(max_wpm), &max_wpm)) {
+            if (transaction_rpc_send(FT_MAX_WPM, sizeof(max_wpm), &max_wpm)) {
                 max_wpm_changed = false;
                 last_max_wpm_update = timer_read();
             }
         }
+#    endif
+#    ifdef ST7565_ENABLE
+        static uint16_t last_display_state_update = 0;
+        static ft_display_state_t last_display_state;
+        if (!same_ft_display_state(&last_display_state, &ft_display_state) || timer_elapsed(last_display_state_update) > FORCED_SYNC_THROTTLE_MS) {
+            if (transaction_rpc_send(FT_DISPLAY_STATE, sizeof(ft_display_state), &ft_display_state)) {
+                memcpy(&last_display_state, &ft_display_state, sizeof(last_display_state));
+                last_display_state_update = timer_read();
+            }
+        }
+#    endif
     }
 }
 #endif
 
 void keyboard_post_init_user(void) {
 #ifdef SPLIT_KEYBOARD
-    transaction_register_rpc(MAX_WPM, max_wpm_slave_handler);
+    transaction_register_rpc(FT_MAX_WPM, max_wpm_slave_handler);
+#    ifdef ST7565_ENABLE
+    transaction_register_rpc(FT_DISPLAY_STATE, display_state_slave_handler);
+#    endif
 #endif
 }
 

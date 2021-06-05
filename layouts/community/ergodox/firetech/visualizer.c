@@ -45,10 +45,6 @@
 
 
 /* Configuration */
-
-#define SWAP_LAYER  1
-#define FN_LAYER  2
-
 static const uint32_t default_color = LCD_COLOR(128, 0,    0xFF);
 static const uint32_t swap_color    = LCD_COLOR(128, 0xFF, 0xFF);
 static const uint32_t fn_color      = LCD_COLOR(170, 0xFF, 0xFF);
@@ -57,9 +53,6 @@ static const uint32_t fn_color      = LCD_COLOR(170, 0xFF, 0xFF);
 
 #define WPM_ANIM_START  20  // Animation idle below this WPM value
 #define WPM_TO_FRAME_TIME(wpm)  (2565 - 537 * log(wpm))  // Formula to convert WPM to frame time
-
-static uint8_t wpm_anim_at_frame = 1;
-static uint16_t wpm_anim_timer = 0;
 
 typedef struct {
     uint8_t swap_hands;
@@ -115,9 +108,11 @@ static bool keyframe_display_stats(keyframe_animation_t* animation, visualizer_s
 
     gdispClear(White);
 
-    const uint8_t* wpm_anim_frame = bongocat[0];
+    static uint8_t wpm_anim_at_frame = 1;
+    static uint16_t wpm_anim_timer = 0;
+    const uint8_t *wpm_frame_P = bongocat[0];
     if (wpm >= WPM_ANIM_START) {
-        wpm_anim_frame = bongocat[wpm_anim_at_frame];
+        wpm_frame_P = bongocat[wpm_anim_at_frame];
 
         if (timer_elapsed(wpm_anim_timer) >= WPM_TO_FRAME_TIME(wpm)) {
             wpm_anim_at_frame = 3 - wpm_anim_at_frame;
@@ -125,8 +120,15 @@ static bool keyframe_display_stats(keyframe_animation_t* animation, visualizer_s
         }
         quick_update = true;
     }
-
-    gdispGBlitArea(GDISP, LCD_WIDTH - BONGOCAT_WIDTH, 0, BONGOCAT_WIDTH, BONGOCAT_HEIGHT, 0, 0, BONGOCAT_LINEWIDTH, (pixel_t*)wpm_anim_frame);
+#if defined(__AVR__)
+    const uint8_t wpm_frame[BONGOCAT_LENGTH];
+    for (uint8_t i = 0; i < BONGOCAT_LENGTH; i ++) {
+        wpm_frame[i] = pgm_read_byte(wpm_frame_P + i);
+    }
+#else
+    const uint8_t *wpm_frame = wpm_frame_P;
+#endif
+    gdispGBlitArea(GDISP, LCD_WIDTH - BONGOCAT_WIDTH, 0, BONGOCAT_WIDTH, BONGOCAT_HEIGHT, 0, 0, BONGOCAT_LINEWIDTH, (pixel_t*)wpm_frame);
 
 #if defined(LED_MATRIX_ENABLE) || defined(BACKLIGHT_ENABLE)
     if (state->status.layer & (1 << FN_LAYER)) {
