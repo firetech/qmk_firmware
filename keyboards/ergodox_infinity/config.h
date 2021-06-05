@@ -116,7 +116,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /* Set 0 if debouncing isn't needed */
 #define DEBOUNCE    5
 
-#define VISUALIZER_USER_DATA_SIZE 16
+#ifdef VISUALIZER_ENABLE
+#    define VISUALIZER_USER_DATA_SIZE 16
+#    define SPLIT_TRANSACTION_IDS_KB  VISUALIZER_SYNC
+#endif
 
 /*
  * Feature disable options
