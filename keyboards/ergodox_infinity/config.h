@@ -54,7 +54,20 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /* key matrix size */
 #define MATRIX_ROWS 18
 #define MATRIX_COLS 5
-#define LOCAL_MATRIX_ROWS 9
+
+// For some reason, the rows are colums in the schematic, and vice versa
+#define MATRIX_ROW_PINS { B2, B3, B18, B19, C0, C9, C10, C11, D0 }
+#define MATRIX_COL_PINS { D1, D4, D5, D6, D7 }
+#define UNUSED_PINS
+
+/* COL2ROW, ROW2COL */
+#define DIODE_DIRECTION ROW2COL
+
+/* Serial config (for communication between halves) */
+#define SERIAL_USART_DRIVER SD1  // Only true for the master half
+#define SERIAL_USART_CONFIG { (SERIAL_USART_SPEED), } // Only field is speed
+#define SERIAL_USART_FULL_DUPLEX
+#define SERIAL_USART_TIMEOUT 50
 
 /* number of backlight levels */
 #define BACKLIGHT_LEVELS 3
@@ -62,16 +75,32 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define LED_BRIGHTNESS_LO       100
 #define LED_BRIGHTNESS_HI       255
 
+/* LED matrix driver */
+#define LED_DRIVER_ADDR_1 0x74
+#define LED_DRIVER_COUNT 1
+#define DRIVER_LED_TOTAL 76
+#define LED_MATRIX_SPLIT { 38, 38 }
+#define LED_DISABLE_WHEN_USB_SUSPENDED true
+
+/* i2c (for LED matrix) */
+#define I2C1_CLOCK_SPEED 400000
+#define I2C1_SCL_PAL_MODE PAL_MODE_ALTERNATIVE_2
+#define I2C1_SDA_PAL_MODE PAL_MODE_ALTERNATIVE_2
+#define I2C1_BANK GPIOB
+#define I2C1_SCL 0
+#define I2C1_SDA 1
+
 /* define if matrix has ghost */
 //#define MATRIX_HAS_GHOST
 
 /* Set 0 if debouncing isn't needed */
 #define DEBOUNCE    5
 
-#define SERIAL_LINK_BAUD 562500
-#define SERIAL_LINK_THREAD_PRIORITY (NORMALPRIO - 1)
+#ifdef VISUALIZER_ENABLE
+#    define VISUALIZER_USER_DATA_SIZE 16
+#    define SPLIT_TRANSACTION_IDS_KB  VISUALIZER_SYNC
+#endif
 
-#define VISUALIZER_USER_DATA_SIZE 16
 /*
  * Feature disable options
  *  These options are also useful to firmware size reduction.
