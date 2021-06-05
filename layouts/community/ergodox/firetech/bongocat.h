@@ -1,4 +1,4 @@
-/* Copyright 2020 Joakim Tufvegren
+/* Copyright 2021 Joakim Tufvegren
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +16,16 @@
 
 #pragma once
 
+#include "progmem.h"
+
 #define BONGOCAT_WIDTH   52
 #define BONGOCAT_HEIGHT  32
 
 #define BONGOCAT_LINEWIDTH  56 // ceil(BONGOCAT_WIDTH / 8.0) * 8
 
-const uint8_t bongocat[][BONGOCAT_LINEWIDTH*BONGOCAT_HEIGHT/8] = {
+#define BONGOCAT_LENGTH  BONGOCAT_LINEWIDTH*BONGOCAT_HEIGHT/8
+
+const uint8_t PROGMEM bongocat[][BONGOCAT_LENGTH] = {
   // .o.
   {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xf0, 0xff, 0xff,
