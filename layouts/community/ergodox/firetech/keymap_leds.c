@@ -16,28 +16,32 @@
 
 #include QMK_KEYBOARD_H
 
+#include "keymap_extra.h"
+
 uint16_t blink_timer = 0;
-bool blink_led_3 = false;
+uint16_t blink_led_3[] = { 0, 0 };
 
 void matrix_scan_user(void){
-    if (blink_led_3){
+    if (blink_led_3[0]){
         ergodox_right_led_3_off();
         uint16_t blink_elapsed = timer_elapsed(blink_timer);
-        if (blink_elapsed > 1000) { blink_timer = timer_read(); }
-        if (blink_elapsed < 500) { ergodox_right_led_3_on(); }
+        if (blink_elapsed > blink_led_3[1]) { blink_timer = timer_read(); }
+        if (blink_elapsed < blink_led_3[0]) { ergodox_right_led_3_on(); }
     }
 };
 
 layer_state_t layer_state_set_user(layer_state_t state) {
     ergodox_right_led_3_off();
-    blink_led_3 = false;
+    blink_led_3[0] = 0;
 
-    if (state & (1 << 2)) {
-        // Fn layer
-        blink_led_3 = true;
-    }
-    if (state & (1 << 1)) {
-        // Swap hands with Space enabled
+    if (state & (1 << FN_LAYER)) {
+        blink_led_3[0] = 300;
+        blink_led_3[1] = 500;
+        if (state & (1 << SWAP_LAYER)) {
+            blink_led_3[0] = 800;
+            blink_led_3[1] = 1000;
+        }
+    } else if (state & (1 << SWAP_LAYER)) {
         ergodox_right_led_3_on();
     }
     return state;
