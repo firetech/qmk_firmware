@@ -32,6 +32,7 @@ ft_display_state_t ft_display_state = {
     .leds  = 0xFF,
     .layer = 0xFFFFFFFF,
     .swap_displays = false,
+    .suspended = false,
 };
 static bool clear_display = true;
 
@@ -54,10 +55,20 @@ bool same_ft_display_state(ft_display_state_t *a, ft_display_state_t *b) {
             a->leds == b->leds &&
             a->layer == b->layer &&
             a->layer == b->layer &&
-            a->swap_displays == b->swap_displays) {
+            a->swap_displays == b->swap_displays &&
+            a->suspended == b->suspended) {
         return true;
     }
     return false;
+}
+
+void set_ft_display_suspended(bool suspended) {
+    ft_display_state.suspended = suspended;
+    if (suspended) {
+        st7565_off();
+    } else {
+        st7565_on();
+    }
 }
 
 /* LCD backlight code copied from quantum/visualizer/lcd_backlight.c */
@@ -119,13 +130,25 @@ static void lcd_backlight_brightness(uint8_t b) {
 static uint8_t prev_brightness = 0;
 
 void st7565_on_user(void) {
+    if (ft_display_state.suspended) {
+        uint8_t stored_brightness = prev_brightness;
+        st7565_off();
+        prev_brightness = stored_brightness;
+        return;
+    }
     ft_display_state.is_on = true;
+#ifdef LED_MATRIX_ENABLE
+    led_matrix_set_val_noeeprom(prev_brightness);
+#endif
     lcd_backlight_brightness(prev_brightness);
 }
 
 void st7565_off_user(void) {
     ft_display_state.is_on = false;
     prev_brightness = current_brightness;
+#ifdef LED_MATRIX_ENABLE
+    led_matrix_set_val_noeeprom(0);
+#endif
     lcd_backlight_brightness(0);
 }
 

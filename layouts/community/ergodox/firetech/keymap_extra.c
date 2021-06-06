@@ -96,7 +96,7 @@ void keyboard_post_init_user(void) {
 void suspend_power_down_user(void) {
 #ifdef ST7565_ENABLE
     if (is_keyboard_master()) {
-        st7565_off();
+        set_ft_display_suspended(true);
     }
 #endif
 }
@@ -104,7 +104,7 @@ void suspend_power_down_user(void) {
 void suspend_wakeup_init_user(void) {
 #ifdef ST7565_ENABLE
     if (is_keyboard_master()) {
-        st7565_on();
+        set_ft_display_suspended(false);
     }
 #endif
 }

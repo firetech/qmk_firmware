@@ -19,7 +19,10 @@
 #endif
 
 #ifdef ST7565_ENABLE
-#    define ST7565_DISABLE_TIMEOUT
+#    define ST7565_TIMEOUT  900000
+#    if defined(LED_MATRIX_ENABLED) && defined(LED_DISABLE_WHEN_USB_SUSPENDED)
+#        undef LED_DISABLE_WHEN_USB_SUSPENDED  // Controlled via ST7565 callbacks instead
+#    endif
 #endif
 
 #ifdef KEYBOARD_ergodox_infinity
