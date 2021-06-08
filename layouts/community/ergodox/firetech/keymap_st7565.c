@@ -201,12 +201,13 @@ void draw_left(void) {
     st7565_advance_page(true);
     st7565_advance_page(true);
     st7565_write_P(PSTR("WPM: "), false);
-    snprintf(stat_buf, STAT_BUF_SIZE, "%3u", wpm);
+    snprintf(stat_buf, STAT_BUF_SIZE, "%u", wpm);
     st7565_write_ln(stat_buf, false);
 
-    st7565_write_P(PSTR("Max: "), false);
-    snprintf(stat_buf, STAT_BUF_SIZE, "%3u", get_max_wpm());
-    st7565_write_ln(stat_buf, false);
+    st7565_write_P(PSTR("    ("), false);
+    snprintf(stat_buf, STAT_BUF_SIZE, "%u", get_max_wpm());
+    st7565_write(stat_buf, false);
+    st7565_write_ln_P(PSTR(")"), false);
 
     static uint16_t wpm_anim_timer = 0;
     static uint8_t wpm_anim_at_frame = 1;
@@ -242,13 +243,13 @@ void draw_left(void) {
             backlight_level = led_matrix_get_val() * 100.0 / UINT8_MAX;
         }
         st7565_write_P(PSTR("Backlight: "), false);
-        snprintf(stat_buf, STAT_BUF_SIZE, "%3u%%", backlight_level);
+        snprintf(stat_buf, STAT_BUF_SIZE, "%u%%", backlight_level);
         st7565_write(stat_buf, false);
 
         if (led_matrix_is_enabled()) {
-            st7565_set_cursor(2, 1);
+            st7565_set_cursor(3, 1);
             st7565_write_P(PSTR("\x10 Mode: "), false);
-            snprintf(stat_buf, STAT_BUF_SIZE, "%2u", led_matrix_get_mode());
+            snprintf(stat_buf, STAT_BUF_SIZE, "%u", led_matrix_get_mode());
             st7565_write(stat_buf, false);
         }
     }
