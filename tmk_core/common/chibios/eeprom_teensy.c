@@ -51,7 +51,7 @@
 // compared to writing 8 bit bytes.
 //
 #    ifndef EEPROM_SIZE
-#        define EEPROM_SIZE 32
+#        define EEPROM_SIZE 128
 #    endif
 
 /*
@@ -69,23 +69,43 @@
 //
 #    define HANDLE_UNALIGNED_WRITES
 
+#    define EESIZE_2048 0x3
+#    define EESIZE_1024 0x4
+#    define EESIZE_512  0x5
+#    define EESIZE_256  0x6
+#    define EESIZE_128  0x7
+#    define EESIZE_64   0x8
+#    define EESIZE_32   0x9
+
 // Minimum EEPROM Endurance
 // ------------------------
 #    if (EEPROM_SIZE == 2048)  // 35000 writes/byte or 70000 writes/word
-#        define EEESIZE 0x33
+#        define EEESIZE (0x30 | EESIZE_2048)
 #    elif (EEPROM_SIZE == 1024)  // 75000 writes/byte or 150000 writes/word
-#        define EEESIZE 0x34
+#        define EEESIZE (0x30 | EESIZE_1024)
 #    elif (EEPROM_SIZE == 512)  // 155000 writes/byte or 310000 writes/word
-#        define EEESIZE 0x35
+#        define EEESIZE (0x30 | EESIZE_512)
 #    elif (EEPROM_SIZE == 256)  // 315000 writes/byte or 630000 writes/word
-#        define EEESIZE 0x36
+#        define EEESIZE (0x30 | EESIZE_256)
 #    elif (EEPROM_SIZE == 128)  // 635000 writes/byte or 1270000 writes/word
-#        define EEESIZE 0x37
+#        define EEESIZE (0x30 | EESIZE_128)
 #    elif (EEPROM_SIZE == 64)  // 1275000 writes/byte or 2550000 writes/word
-#        define EEESIZE 0x38
+#        define EEESIZE (0x30 | EESIZE_64)
 #    elif (EEPROM_SIZE == 32)  // 2555000 writes/byte or 5110000 writes/word
-#        define EEESIZE 0x39
+#        define EEESIZE (0x30 | EESIZE_32)
 #    endif
+
+#    ifndef SIM_FCFG1_EESIZE_MASK
+#        define SIM_FCFG1_EESIZE_MASK (0xF0000U)
+#    endif
+#    ifndef SIM_FCFG1_EESIZE_SHIFT
+#        define SIM_FCFG1_EESIZE_SHIFT (16U)
+#    endif
+
+static bool eeprom_initialized = false;
+static uint8_t eeprom_ready_flag = FTFL_FCNFG_EEERDY;
+static uint16_t eeprom_size = 0;
+
 
 /** \brief eeprom initialization
  *
@@ -116,6 +136,49 @@ void eeprom_initialize(void) {
     while (!(FTFL->FCNFG & FTFL_FCNFG_EEERDY)) {
         if (++count > 20000) break;
     }
+
+    // check partitioned EEPROM size and set ready flag
+    if (FTFL->FCNFG & FTFL_FCNFG_EEERDY) {
+        const uint8_t eesize = (SIM->FCFG1 & SIM_FCFG1_EESIZE_MASK) >> SIM_FCFG1_EESIZE_SHIFT;
+        switch (eesize) {
+            case EESIZE_2048:
+                eeprom_size = 2048;
+                break;
+            case EESIZE_1024:
+                eeprom_size = 1024;
+                break;
+            case EESIZE_512:
+                eeprom_size = 512;
+                break;
+            case EESIZE_256:
+                eeprom_size = 256;
+                break;
+            case EESIZE_128:
+                eeprom_size = 128;
+                break;
+            case EESIZE_64:
+                eeprom_size = 64;
+                break;
+            case EESIZE_32:
+                eeprom_size = 32;
+                break;
+        }
+
+        if (eeprom_size < EEPROM_SIZE) {
+            // partitioned EEPROM is too small, switch FlexRAM over to function as RAM and act as a transient EEPROM
+            FTFL->FCCOB0 = 0x81;     // SETRAM - Set FlexRAM Function Command
+            FTFL->FCCOB1 = 0xFF;     // Make FlexRAM available as RAM.
+            __disable_irq();
+            // do_flash_cmd() must execute from RAM.  Luckily the C syntax is simple...
+            (*((void (*)(volatile uint8_t *))((uint32_t)do_flash_cmd | 1)))(&(FTFL->FSTAT));
+            __enable_irq();
+
+            eeprom_ready_flag = FTFL_FCNFG_RAMRDY;
+            eeprom_size = 2048;
+        }
+
+        eeprom_initialized = true;
+    }
 }
 
 #    define FlexRAM ((uint8_t *)0x14000000)
@@ -126,8 +189,8 @@ void eeprom_initialize(void) {
  */
 uint8_t eeprom_read_byte(const uint8_t *addr) {
     uint32_t offset = (uint32_t)addr;
-    if (offset >= EEPROM_SIZE) return 0;
-    if (!(FTFL->FCNFG & FTFL_FCNFG_EEERDY)) eeprom_initialize();
+    if (offset >= eeprom_size) return 0;
+    if (!eeprom_initialized) eeprom_initialize();
     return FlexRAM[offset];
 }
 
@@ -137,8 +200,8 @@ uint8_t eeprom_read_byte(const uint8_t *addr) {
  */
 uint16_t eeprom_read_word(const uint16_t *addr) {
     uint32_t offset = (uint32_t)addr;
-    if (offset >= EEPROM_SIZE - 1) return 0;
-    if (!(FTFL->FCNFG & FTFL_FCNFG_EEERDY)) eeprom_initialize();
+    if (offset >= eeprom_size - 1) return 0;
+    if (!eeprom_initialized) eeprom_initialize();
     return *(uint16_t *)(&FlexRAM[offset]);
 }
 
@@ -148,8 +211,8 @@ uint16_t eeprom_read_word(const uint16_t *addr) {
  */
 uint32_t eeprom_read_dword(const uint32_t *addr) {
     uint32_t offset = (uint32_t)addr;
-    if (offset >= EEPROM_SIZE - 3) return 0;
-    if (!(FTFL->FCNFG & FTFL_FCNFG_EEERDY)) eeprom_initialize();
+    if (offset >= eeprom_size - 3) return 0;
+    if (!eeprom_initialized) eeprom_initialize();
     return *(uint32_t *)(&FlexRAM[offset]);
 }
 
@@ -162,8 +225,8 @@ void eeprom_read_block(void *buf, const void *addr, uint32_t len) {
     uint8_t *dest   = (uint8_t *)buf;
     uint32_t end    = offset + len;
 
-    if (!(FTFL->FCNFG & FTFL_FCNFG_EEERDY)) eeprom_initialize();
-    if (end > EEPROM_SIZE) end = EEPROM_SIZE;
+    if (!eeprom_initialized) eeprom_initialize();
+    if (end > eeprom_size) end = eeprom_size;
     while (offset < end) {
         *dest++ = FlexRAM[offset++];
     }
@@ -173,14 +236,14 @@ void eeprom_read_block(void *buf, const void *addr, uint32_t len) {
  *
  * FIXME: needs doc
  */
-int eeprom_is_ready(void) { return (FTFL->FCNFG & FTFL_FCNFG_EEERDY) ? 1 : 0; }
+int eeprom_is_ready(void) { return (FTFL->FCNFG & eeprom_ready_flag) ? 1 : 0; }
 
 /** \brief flexram wait
  *
  * FIXME: needs doc
  */
 static void flexram_wait(void) {
-    while (!(FTFL->FCNFG & FTFL_FCNFG_EEERDY)) {
+    while (!(FTFL->FCNFG & eeprom_ready_flag)) {
         // TODO: timeout
     }
 }
@@ -192,8 +255,8 @@ static void flexram_wait(void) {
 void eeprom_write_byte(uint8_t *addr, uint8_t value) {
     uint32_t offset = (uint32_t)addr;
 
-    if (offset >= EEPROM_SIZE) return;
-    if (!(FTFL->FCNFG & FTFL_FCNFG_EEERDY)) eeprom_initialize();
+    if (offset >= eeprom_size) return;
+    if (!eeprom_initialized) eeprom_initialize();
     if (FlexRAM[offset] != value) {
         FlexRAM[offset] = value;
         flexram_wait();
@@ -207,8 +270,8 @@ void eeprom_write_byte(uint8_t *addr, uint8_t value) {
 void eeprom_write_word(uint16_t *addr, uint16_t value) {
     uint32_t offset = (uint32_t)addr;
 
-    if (offset >= EEPROM_SIZE - 1) return;
-    if (!(FTFL->FCNFG & FTFL_FCNFG_EEERDY)) eeprom_initialize();
+    if (offset >= eeprom_size - 1) return;
+    if (!eeprom_initialized) eeprom_initialize();
 #    ifdef HANDLE_UNALIGNED_WRITES
     if ((offset & 1) == 0) {
 #    endif
@@ -237,8 +300,8 @@ void eeprom_write_word(uint16_t *addr, uint16_t value) {
 void eeprom_write_dword(uint32_t *addr, uint32_t value) {
     uint32_t offset = (uint32_t)addr;
 
-    if (offset >= EEPROM_SIZE - 3) return;
-    if (!(FTFL->FCNFG & FTFL_FCNFG_EEERDY)) eeprom_initialize();
+    if (offset >= eeprom_size - 3) return;
+    if (!eeprom_initialized) eeprom_initialize();
 #    ifdef HANDLE_UNALIGNED_WRITES
     switch (offset & 3) {
         case 0:
@@ -284,10 +347,10 @@ void eeprom_write_block(const void *buf, void *addr, uint32_t len) {
     uint32_t       offset = (uint32_t)addr;
     const uint8_t *src    = (const uint8_t *)buf;
 
-    if (offset >= EEPROM_SIZE) return;
-    if (!(FTFL->FCNFG & FTFL_FCNFG_EEERDY)) eeprom_initialize();
-    if (len >= EEPROM_SIZE) len = EEPROM_SIZE;
-    if (offset + len >= EEPROM_SIZE) len = EEPROM_SIZE - offset;
+    if (offset >= eeprom_size) return;
+    if (!eeprom_initialized) eeprom_initialize();
+    if (len >= eeprom_size) len = eeprom_size;
+    if (offset + len >= eeprom_size) len = eeprom_size - offset;
     while (len > 0) {
         uint32_t lsb = offset & 3;
         if (lsb == 0 && len >= 4) {
