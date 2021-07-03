@@ -22,51 +22,75 @@
 #include "keymap_extra.h"
 #include "bongocat.h"
 
+#define FADE_LENGTH 750
+
 #define STAT_BUF_SIZE  10
 
 #define WPM_ANIM_START  20  // Animation idle below this WPM value
 #define WPM_TO_FRAME_TIME(wpm)  (2565 - 537 * log(wpm))  // Formula to convert WPM to frame time
 
+enum ft_display_mode {
+    OFF,
+    FADE_IN,
+    ON,
+    FADE_OUT,
+};
+
 typedef struct {
-    bool is_on;
+    enum ft_display_mode mode;
     bool swap_displays;
     bool suspended;
 } ft_display_state_t;
 
+typedef struct {
+    uint16_t timer;
+    uint8_t brightness;
+} ft_display_fade_state_t;
+
 ft_display_state_t ft_display_state = {
-    .is_on = true,
     .swap_displays = false,
+    .mode = OFF,
     .suspended = false,
+};
+ft_display_fade_state_t ft_display_fade_state = {
+    .timer = 0,
+    .brightness = 0,
 };
 static bool clear_display = true;
 
 #ifdef SPLIT_KEYBOARD
 static bool same_ft_display_state(ft_display_state_t *a, ft_display_state_t *b) {
-    if (a->is_on == b->is_on &&
-            a->swap_displays == b->swap_displays &&
-            a->suspended == b->suspended) {
-        return true;
-    }
-    return false;
+    return (a->mode == b->mode &&
+        a->swap_displays == b->swap_displays &&
+        a->suspended == b->suspended);
 }
 
-static void display_state_slave_handler(uint8_t in_buflen, const void* in_data, uint8_t out_buflen, void* out_data) {
+static bool same_ft_display_fade_state(ft_display_fade_state_t *a, ft_display_fade_state_t *b) {
+    return (a->timer == b->timer &&
+        a->brightness == b->brightness);
+}
+
+static void ft_display_state_slave_handler(uint8_t in_buflen, const void* in_data, uint8_t out_buflen, void* out_data) {
     ft_display_state_t *new_state = (ft_display_state_t *)in_data;
     if (!same_ft_display_state(&ft_display_state, new_state)) {
         memcpy(&ft_display_state, new_state, sizeof(ft_display_state));
-        if (ft_display_state.is_on != st7565_is_on()) {
-            if (ft_display_state.is_on) {
-                st7565_on();
-            } else {
-                st7565_off();
-            }
+        bool should_be_on = (ft_display_state.mode == FADE_IN || ft_display_state.mode == ON);
+        if (should_be_on && !st7565_is_on()) {
+            st7565_on();
+        } else if (!should_be_on && st7565_is_on()) {
+            st7565_off();
         }
         clear_display = true;
     }
 }
 
+static void ft_display_fade_state_slave_handler(uint8_t in_buflen, const void* in_data, uint8_t out_buflen, void* out_data) {
+    memcpy(&ft_display_fade_state, in_data, sizeof(ft_display_fade_state));
+}
+
 void ft_display_register_rpc(void) {
-    transaction_register_rpc(FT_DISPLAY_STATE, display_state_slave_handler);
+    transaction_register_rpc(FT_DISPLAY_STATE, ft_display_state_slave_handler);
+    transaction_register_rpc(FT_DISPLAY_FADE_STATE, ft_display_fade_state_slave_handler);
 }
 
 void ft_display_rpc(bool force) {
@@ -80,6 +104,17 @@ void ft_display_rpc(bool force) {
         if (transaction_rpc_send(FT_DISPLAY_STATE, sizeof(ft_display_state), &ft_display_state)) {
             memcpy(&last_display_state, &ft_display_state, sizeof(last_display_state));
             last_display_state_update = timer_read();
+        }
+    }
+
+    if (ft_display_state.mode == FADE_IN || ft_display_state.mode == FADE_OUT) {
+        static uint16_t last_display_fade_state_update = 0;
+        static ft_display_fade_state_t last_display_fade_state;
+        if (force || !same_ft_display_fade_state(&last_display_fade_state, &ft_display_fade_state) || timer_elapsed(last_display_fade_state_update) > FORCED_SYNC_THROTTLE_MS) {
+            if (transaction_rpc_send(FT_DISPLAY_FADE_STATE, sizeof(ft_display_fade_state), &ft_display_fade_state)) {
+                memcpy(&last_display_fade_state, &ft_display_fade_state, sizeof(last_display_fade_state));
+                last_display_fade_state_update = timer_read();
+            }
         }
     }
 }
@@ -154,29 +189,37 @@ static void lcd_backlight_brightness(uint8_t b) {
 }
 /* End of copied LCD backlight code */
 
-static uint8_t prev_brightness = 0;
-
 void st7565_on_user(void) {
     if (ft_display_state.suspended) {
-        uint8_t stored_brightness = prev_brightness;
+        // Stay suspended
         st7565_off();
-        prev_brightness = stored_brightness;
         return;
     }
-    ft_display_state.is_on = true;
-#ifdef LED_MATRIX_ENABLE
-    led_matrix_set_val_noeeprom(prev_brightness);
-#endif
-    lcd_backlight_brightness(prev_brightness);
+
+    if (is_keyboard_master()) {
+        if (ft_display_state.mode == OFF) {
+            ft_display_state.mode = FADE_IN;
+        }
+        if (ft_display_state.mode == FADE_IN) {
+            ft_display_fade_state.timer = sync_timer_read();
+            clear_display = true;
+        }
+    } else {
+        ft_display_state.mode = ON;
+    }
 }
 
 void st7565_off_user(void) {
-    ft_display_state.is_on = false;
-    prev_brightness = current_brightness;
-#ifdef LED_MATRIX_ENABLE
-    led_matrix_set_val_noeeprom(0);
-#endif
-    lcd_backlight_brightness(0);
+    if (is_keyboard_master()) {
+        if (ft_display_state.mode == FADE_IN || ft_display_state.mode == ON) {
+            ft_display_fade_state.brightness = current_brightness;
+            ft_display_fade_state.timer = sync_timer_read();
+            ft_display_state.mode = FADE_OUT;
+            clear_display = true;
+        }
+    } else {
+        ft_display_state.mode = OFF;
+    }
 }
 
 static inline void write_led_state(uint8_t *row, uint8_t *col, const char *text_P) {
@@ -278,6 +321,23 @@ static void draw_left(void) {
 #endif
 }
 
+display_rotation_t st7565_init_user(display_rotation_t rotation) {
+    // Prepare FADE_IN
+    lcd_backlight_brightness(0);
+    lcd_backlight_color(0, 0, 255);
+    if (is_keyboard_master()) {
+#ifdef LED_MATRIX_ENABLE
+        ft_display_fade_state.brightness = led_matrix_get_val();
+#else
+        ft_display_fade_state.brightness = current_brightness;
+#endif
+        ft_display_fade_state.timer = sync_timer_read();
+        led_matrix_set_val_noeeprom(0);
+        ft_display_state.mode = FADE_IN;
+    }
+    return rotation;
+}
+
 void st7565_task_user(void) {
     if (is_keyboard_master()) {
         if (swap_hands != ft_display_state.swap_displays) {
@@ -286,7 +346,56 @@ void st7565_task_user(void) {
         }
     }
 
-    if (ft_display_state.is_on) {
+    if (clear_display) {
+        st7565_clear();
+        clear_display = false;
+    }
+
+    if (ft_display_state.mode == FADE_IN || ft_display_state.mode == FADE_OUT) {
+        uint16_t fade_elapsed = sync_timer_elapsed(ft_display_fade_state.timer);
+        if (fade_elapsed < FADE_LENGTH) {
+            uint8_t fade_brightness = ((float)fade_elapsed / FADE_LENGTH) * ft_display_fade_state.brightness;
+            if (ft_display_state.mode == FADE_IN) {
+                // Draw logo
+                static const char qmk_logo[] = {
+                    0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F, 0x90, 0x91, 0x92, 0x93, 0x94,
+                    0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xAB, 0xAC, 0xAD, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2, 0xB3, 0xB4,
+                    0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF, 0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0x00
+                };
+
+                st7565_write(qmk_logo, false);
+                st7565_set_cursor(3, 3);
+                st7565_write("ergodox/firetech", false);
+            } else {
+                fade_brightness = ft_display_fade_state.brightness - fade_brightness;
+            }
+#ifdef LED_MATRIX_ENABLE
+            if (is_keyboard_master()) {
+                led_matrix_set_val_noeeprom(fade_brightness);
+            }
+#endif
+            lcd_backlight_brightness(fade_brightness);
+            return;
+        } else {
+            uint8_t final_brightness;
+            if (ft_display_state.mode == FADE_IN) {
+                ft_display_state.mode = ON;
+                final_brightness = ft_display_fade_state.brightness;
+            } else {
+                st7565_off();
+                ft_display_state.mode = OFF;
+                final_brightness = 0;
+            }
+#ifdef LED_MATRIX_ENABLE
+            if (is_keyboard_master()) {
+                led_matrix_set_val_noeeprom(final_brightness);
+            }
+#endif
+            lcd_backlight_brightness(final_brightness);
+        }
+    }
+
+    if (ft_display_state.mode == ON) {
 #ifdef LED_MATRIX_ENABLE
         lcd_backlight_brightness(led_matrix_get_val());
 #endif
@@ -309,11 +418,6 @@ void st7565_task_user(void) {
 
         bool is_left = is_keyboard_left();
         if (ft_display_state.swap_displays) { is_left = !is_left; }
-
-        if (clear_display) {
-            st7565_clear();
-            clear_display = false;
-        }
 
         if (is_left) {
             draw_left();

@@ -25,7 +25,7 @@
 #    endif
 
 // It's easier to just define all of these and not use them if irrelevant
-#    define SPLIT_TRANSACTION_IDS_USER  FT_MAX_WPM, FT_DISPLAY_STATE
+#    define SPLIT_TRANSACTION_IDS_USER  FT_MAX_WPM, FT_DISPLAY_STATE, FT_DISPLAY_FADE_STATE
 #endif
 
 #ifdef ST7565_ENABLE
