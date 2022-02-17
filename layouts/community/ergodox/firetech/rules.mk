@@ -13,7 +13,7 @@ OPT_DEFS += -DLED_MATRIX_KEYREACTIVE_ENABLED
 #
 SRC += keymap_extra.c
 ifeq ($(strip $(ST7565_ENABLE)), yes)
-  SRC += keymap_st7565.c
+  SRC += st7565_display.c
 else
-  SRC += keymap_leds.c
+  SRC += leds.c
 endif

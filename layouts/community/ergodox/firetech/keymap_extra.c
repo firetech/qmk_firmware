@@ -1,4 +1,4 @@
-/* Copyright 2021 Joakim Tufvegren
+/* Copyright 2022 Joakim Tufvegren
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 
 #include "keymap_extra.h"
 #ifdef ST7565_ENABLE
-#    include "keymap_st7565.h"
+#    include "st7565_display.h"
 #endif
 
 #define WPM_BUF_SIZE 4
