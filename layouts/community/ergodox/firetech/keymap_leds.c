@@ -18,14 +18,14 @@
 
 #include "keymap_extra.h"
 
-uint16_t blink_timer = 0;
-uint16_t blink_led_3[] = { 0, 0 };
+static fast_timer_t blink_timer = 0;
+static uint16_t blink_led_3[] = { 0, 0 };
 
 void matrix_scan_user(void){
     if (blink_led_3[0]){
         ergodox_right_led_3_off();
-        uint16_t blink_elapsed = timer_elapsed(blink_timer);
-        if (blink_elapsed > blink_led_3[1]) { blink_timer = timer_read(); }
+        fast_timer_t blink_elapsed = timer_elapsed_fast(blink_timer);
+        if (blink_elapsed > blink_led_3[1]) { blink_timer = timer_read_fast(); }
         if (blink_elapsed < blink_led_3[0]) { ergodox_right_led_3_on(); }
     }
 };

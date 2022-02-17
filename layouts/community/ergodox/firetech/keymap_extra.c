@@ -52,11 +52,11 @@ void housekeeping_task_user(void) {
 #ifdef SPLIT_KEYBOARD
     if (is_keyboard_master()) {
 #    ifdef WPM_ENABLE
-        static uint16_t last_max_wpm_update = 0;
-        if (max_wpm_changed || timer_elapsed(last_max_wpm_update) > FORCED_SYNC_THROTTLE_MS) {
+        static fast_timer_t last_max_wpm_update = 0;
+        if (max_wpm_changed || timer_elapsed_fast(last_max_wpm_update) > FORCED_SYNC_THROTTLE_MS) {
             if (transaction_rpc_send(FT_MAX_WPM, sizeof(user_config.max_wpm), &user_config.max_wpm)) {
                 max_wpm_changed = false;
-                last_max_wpm_update = timer_read();
+                last_max_wpm_update = timer_read_fast();
             }
         }
 #    endif

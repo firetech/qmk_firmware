@@ -74,12 +74,12 @@ void ft_display_rpc(bool force) {
         return;
     }
 
-    static uint16_t last_display_state_update = 0;
+    static fast_timer_t last_display_state_update = 0;
     static ft_display_state_t last_display_state;
-    if (force || !same_ft_display_state(&last_display_state, &ft_display_state) || timer_elapsed(last_display_state_update) > FORCED_SYNC_THROTTLE_MS) {
+    if (force || !same_ft_display_state(&last_display_state, &ft_display_state) || timer_elapsed_fast(last_display_state_update) > FORCED_SYNC_THROTTLE_MS) {
         if (transaction_rpc_send(FT_DISPLAY_STATE, sizeof(ft_display_state), &ft_display_state)) {
             memcpy(&last_display_state, &ft_display_state, sizeof(last_display_state));
-            last_display_state_update = timer_read();
+            last_display_state_update = timer_read_fast();
         }
     }
 }
