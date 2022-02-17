@@ -15,6 +15,8 @@
 #    ifdef ST7565_ENABLE
 #        define SPLIT_LED_STATE_ENABLE
 #        define SPLIT_LAYER_STATE_ENABLE
+#        define SPLIT_MODS_ENABLE
+#        define SPLIT_LUNA_RPC_ENABLE
 #    endif
 #    ifdef LED_MATRIX_ENABLE
 #        define SPLIT_TRANSPORT_MIRROR
@@ -24,7 +26,7 @@
 #    endif
 
 // It's easier to just define all of these and not use them if irrelevant
-#    define SPLIT_TRANSACTION_IDS_USER  FT_MAX_WPM, FT_DISPLAY_STATE
+#    define SPLIT_TRANSACTION_IDS_USER  FT_MAX_WPM, FT_DISPLAY_STATE, LUNA_RPC
 #endif
 
 #ifdef ST7565_ENABLE

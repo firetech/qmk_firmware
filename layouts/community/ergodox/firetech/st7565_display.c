@@ -20,12 +20,9 @@
 
 #include "st7565_display.h"
 #include "keymap_extra.h"
-#include "bongocat.h"
+#include "luna.h"
 
 #define STAT_BUF_SIZE  10
-
-#define WPM_ANIM_START  20  // Animation idle below this WPM value
-#define WPM_TO_FRAME_TIME(wpm)  (2565 - 537 * log(wpm))  // Formula to convert WPM to frame time
 
 #define SWAP_DISPLAYS_DELAY  100 //ms
 
@@ -217,56 +214,55 @@ static void draw_right(const char *layer_text_P) {
 static void draw_left(void) {
     char stat_buf[STAT_BUF_SIZE];
 
-    const char *wpm_frame = bongocat[0];
-#ifdef WPM_ENABLE
-    uint8_t wpm = get_current_wpm();
-
-    st7565_advance_page(true);
-    st7565_advance_page(true);
-    st7565_write_P(PSTR("WPM: "), false);
-    snprintf(stat_buf, STAT_BUF_SIZE, "%u", wpm);
-    st7565_write_ln(stat_buf, false);
-
-    st7565_write_P(PSTR("    ("), false);
-    snprintf(stat_buf, STAT_BUF_SIZE, "%u", get_max_wpm());
-    st7565_write(stat_buf, false);
-    st7565_write_ln_P(PSTR(")"), false);
-
-    static uint16_t wpm_anim_timer = 0;
-    static uint8_t wpm_anim_at_frame = 1;
-    if (wpm >= WPM_ANIM_START) {
-        wpm_frame = bongocat[wpm_anim_at_frame];
-
-        if (timer_elapsed(wpm_anim_timer) >= WPM_TO_FRAME_TIME(wpm)) {
-            wpm_anim_at_frame = 3 - wpm_anim_at_frame;
-            wpm_anim_timer = timer_read();
-        }
-    }
-#endif
-    for (uint8_t y = 0; y < BONGOCAT_HEIGHT / 8; y++) {
-        st7565_set_cursor((ST7565_DISPLAY_WIDTH - BONGOCAT_WIDTH) / ST7565_FONT_WIDTH, y);
-        st7565_write_raw_P(wpm_frame + (y * BONGOCAT_WIDTH), BONGOCAT_WIDTH);
-    }
-
 #ifdef LED_MATRIX_ENABLE
+    static bool has_led_matrix_stats = false;
     if (layer_state & (1 << _FN)) {
-        st7565_set_cursor(0, 0);
         uint8_t backlight_level = 0;
         if (led_matrix_is_enabled()) {
             backlight_level = led_matrix_get_val() * 100.0 / UINT8_MAX;
         }
+        st7565_set_cursor(0, 0);
         st7565_write_P(PSTR("Backlight: "), false);
-        snprintf(stat_buf, STAT_BUF_SIZE, "%u%%", backlight_level);
+        snprintf(stat_buf, STAT_BUF_SIZE, "%u", backlight_level);
         st7565_write(stat_buf, false);
+        st7565_write_P(PSTR("%  "), false);
 
         if (led_matrix_is_enabled()) {
             st7565_set_cursor(3, 1);
             st7565_write_P(PSTR("\x10 Mode: "), false);
             snprintf(stat_buf, STAT_BUF_SIZE, "%u", led_matrix_get_mode());
             st7565_write(stat_buf, false);
+            st7565_write_P(PSTR(" "), false);
         }
+
+        has_led_matrix_stats = true;
+    } else if (has_led_matrix_stats) {
+        st7565_set_cursor(0, 0);
+        st7565_write_P(PSTR("               "), false);
+        st7565_set_cursor(3, 1);
+        st7565_write_P(PSTR("          "), false);
+
+        has_led_matrix_stats = false;
     }
 #endif
+
+#ifdef WPM_ENABLE
+    uint8_t wpm = get_current_wpm();
+
+    st7565_set_cursor(0, 2);
+    st7565_write_P(PSTR("WPM: "), false);
+    snprintf(stat_buf, STAT_BUF_SIZE, "%u", wpm);
+    st7565_write(stat_buf, false);
+    st7565_write_P(PSTR("  "), false);
+
+    st7565_set_cursor(4, 3);
+    st7565_write_P(PSTR("("), false);
+    snprintf(stat_buf, STAT_BUF_SIZE, "%u", get_max_wpm());
+    st7565_write(stat_buf, false);
+    st7565_write_P(PSTR(")  "), false);
+#endif
+
+    render_luna(16, 1);
 }
 
 void st7565_task_user(void) {

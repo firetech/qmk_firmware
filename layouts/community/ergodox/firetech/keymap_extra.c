@@ -21,6 +21,7 @@
 #include "keymap_extra.h"
 #ifdef ST7565_ENABLE
 #    include "st7565_display.h"
+#    include "luna.h"
 #endif
 
 #define WPM_BUF_SIZE 4
@@ -62,6 +63,7 @@ void housekeeping_task_user(void) {
 #    endif
 #    ifdef ST7565_ENABLE
         ft_display_rpc(false);
+        luna_rpc();
 #    endif
     }
 #endif
@@ -81,6 +83,7 @@ void keyboard_post_init_user(void) {
 #    endif
 #    ifdef ST7565_ENABLE
     ft_display_register_rpc();
+    register_luna_rpc();
 #    endif
 #endif
 }
@@ -121,6 +124,9 @@ inline uint8_t get_max_wpm(void) {
 }
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+#ifdef ST7565_ENABLE
+    process_record_luna(keycode, record);
+#endif
     uint8_t wpm = get_current_wpm();
     if (wpm > get_max_wpm()) {
         set_max_wpm(wpm);

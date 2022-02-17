@@ -7,7 +7,8 @@ Infinity Ergodox) and at work (on an Ergodox EZ).
 Includes some extra fanciness:
 * Keeps track of max measured WPM.
 * Keys to output current and max WPM (and one to reset both).
-* An ST7565 renderer for Ergodox Infinity.
+* An ST7565 renderer for Ergodox Infinity, featuring an adaptation of
+  [Luna](https://youtu.be/HgIQRazCAjo).
 * Custom indicator LED handling on other Ergodox variants than Infinity.
 
 How to build
