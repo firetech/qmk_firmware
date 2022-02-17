@@ -27,6 +27,8 @@
 #define WPM_ANIM_START  20  // Animation idle below this WPM value
 #define WPM_TO_FRAME_TIME(wpm)  (2565 - 537 * log(wpm))  // Formula to convert WPM to frame time
 
+#define SWAP_DISPLAYS_DELAY  100 //ms
+
 typedef struct {
     bool is_on;
     bool swap_displays;
@@ -269,10 +271,17 @@ static void draw_left(void) {
 
 void st7565_task_user(void) {
     if (is_keyboard_master()) {
+        static bool last_swap_hands = false;
         if (swap_hands != ft_display_state.swap_displays) {
-            ft_display_state.swap_displays = swap_hands;
-            clear_display = true;
+            static fast_timer_t swap_timer = 0;
+            if (swap_hands != last_swap_hands) {
+                swap_timer = timer_read_fast();
+            } else if (timer_elapsed_fast(swap_timer) > SWAP_DISPLAYS_DELAY) {
+                ft_display_state.swap_displays = swap_hands;
+                clear_display = true;
+            }
         }
+        last_swap_hands = swap_hands;
     }
 
     if (ft_display_state.is_on) {
