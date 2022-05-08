@@ -92,6 +92,10 @@ void set_ft_display_suspended(bool suspended) {
     ft_display_state.suspended = suspended;
     if (suspended) {
         st7565_off();
+#ifdef LED_MATRIX_ENABLE
+        // Ugly hack to fix LED matrix suspend
+        led_matrix_task();
+#endif
     } else {
         st7565_on();
     }
