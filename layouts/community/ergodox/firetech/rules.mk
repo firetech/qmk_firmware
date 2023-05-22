@@ -3,6 +3,7 @@
 COMMAND_ENABLE = no
 CONSOLE_ENABLE = yes
 WPM_ENABLE = yes
+SWAP_HANDS_ENABLE = yes
 
 DEBOUNCE_TYPE ?= sym_defer_pk
 
